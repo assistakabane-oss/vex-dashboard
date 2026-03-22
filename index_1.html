@@ -1,0 +1,2572 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ソーシャルナビ 報酬分配ダッシュボード</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root{
+  --bg:#080b12;--surface:#0e1117;--card:#131820;--card2:#181f2a;
+  --border:#1e2738;--border2:#263044;
+  --blue:#4a8cff;--blue-dim:rgba(74,140,255,.15);
+  --gold:#e8a84a;--gold-dim:rgba(232,168,74,.12);
+  --green:#34c78a;--red:#f05555;
+  --text:#dde3f0;--muted:#596880;--dim:#8494aa;
+  --r:10px;--r-sm:6px;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Noto Sans JP',sans-serif;
+  --serif:'DM Serif Display',serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg,transparent,transparent 39px,rgba(74,140,255,.03) 40px),
+             repeating-linear-gradient(90deg,transparent,transparent 39px,rgba(74,140,255,.03) 40px)}
+.z1{position:relative;z-index:1}
+#setup{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 16px}
+.setup-box{background:var(--card);border:1px solid var(--border2);border-radius:20px;padding:48px 40px;max-width:500px;width:100%;box-shadow:0 48px 80px rgba(0,0,0,.7)}
+.setup-logo{width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--blue),#7b52ff);display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:24px}
+.setup-title{font-family:var(--serif);font-size:26px;margin-bottom:8px}
+.setup-desc{font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:28px}
+.lbl{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);display:block;margin-bottom:7px}
+.inp{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-family:var(--mono);font-size:13px;padding:11px 14px;outline:none;transition:border .2s,box-shadow .2s}
+.inp:focus{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-dim)}
+.inp[readonly]{opacity:.5;cursor:default}
+.fg{margin-bottom:18px}
+.help{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.6}
+.btn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border:none;border-radius:var(--r-sm);font-family:var(--sans);font-size:14px;font-weight:500;cursor:pointer;transition:all .18s}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-primary:hover{background:#6aa3ff;box-shadow:0 4px 20px var(--blue-dim);transform:translateY(-1px)}
+.btn-secondary{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{background:var(--border)}
+.btn-full{width:100%;justify-content:center}
+.btn-sm{padding:7px 14px;font-size:12px}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important;box-shadow:none!important}
+.alert{padding:11px 14px;border-radius:var(--r-sm);font-size:13px;margin-bottom:14px;line-height:1.5}
+.alert-error  {background:rgba(240,85,85,.1);border:1px solid rgba(240,85,85,.3);color:#ff9898}
+.alert-success{background:rgba(52,199,138,.1);border:1px solid rgba(52,199,138,.3);color:var(--green)}
+.alert-info   {background:var(--blue-dim);border:1px solid rgba(74,140,255,.25);color:#a5c4ff}
+.hidden{display:none!important}
+#app{display:none}
+header{background:rgba(8,11,18,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
+.hdr{max-width:1320px;margin:0 auto;padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between}
+.brand{display:flex;align-items:center;gap:12px}
+.brand-icon{width:30px;height:30px;border-radius:7px;background:linear-gradient(135deg,var(--blue),#7b52ff);display:flex;align-items:center;justify-content:center;font-size:14px}
+.brand-name{font-family:var(--serif);font-size:17px}
+.brand-sub{font-size:10.5px;color:var(--muted);font-family:var(--mono);letter-spacing:.07em}
+.conn-badge{display:flex;align-items:center;gap:6px;font-size:11.5px;font-family:var(--mono);color:var(--dim)}
+.conn-dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 7px var(--green)}
+.wrap{max-width:1320px;margin:0 auto;padding:0 24px 60px}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--border);padding-top:22px;margin-bottom:28px;overflow-x:auto;flex-wrap:nowrap}
+.tab-btn{background:transparent;border:none;border-bottom:2px solid transparent;padding:9px 13px;margin-bottom:-1px;color:var(--muted);font-family:var(--sans);font-size:13.5px;font-weight:500;cursor:pointer;transition:all .18s;white-space:nowrap}
+.tab-btn:hover{color:var(--text)}
+.tab-btn.active{color:var(--blue);border-bottom-color:var(--blue)}
+.tab-pane{display:none}.tab-pane.active{display:block;animation:fu .25s ease}
+@keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.toolbar{display:flex;align-items:center;gap:12px;margin-bottom:22px;flex-wrap:wrap}
+.pills{display:flex;gap:5px;flex-wrap:wrap}
+.pill{padding:5px 13px;border-radius:20px;font-size:12.5px;font-weight:500;background:var(--card);border:1px solid var(--border);color:var(--dim);cursor:pointer;transition:all .15s}
+.pill:hover{border-color:var(--blue);color:var(--text)}
+.pill.active{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 2px 12px var(--blue-dim)}
+.pill.yr.active{background:var(--gold);border-color:var(--gold);color:#080b12}
+.ml-auto{margin-left:auto}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:24px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px}
+.stat-lbl{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:7px}
+.stat-val{font-family:var(--mono);font-size:22px;font-weight:600;letter-spacing:-.02em}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:22px}
+.card-ttl{font-size:13px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.badge{font-size:10.5px;color:var(--muted);font-family:var(--mono);background:var(--surface);border:1px solid var(--border);border-radius:4px;padding:2px 7px}
+.ch-wrap{height:300px;position:relative}
+.tbl-card{background:var(--card);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:22px}
+.tbl-hdr{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.tbl-ttl{font-size:13px;font-weight:600}
+.tbl-sub{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+table{width:100%;border-collapse:collapse}
+th{padding:10px 14px;text-align:left;font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);background:rgba(255,255,255,.018);border-bottom:1px solid var(--border)}
+td{padding:12px 14px;border-bottom:1px solid var(--border);font-size:13px;vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(255,255,255,.015)}
+.mc{display:flex;align-items:center;gap:9px;font-weight:500}
+.av{width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0}
+.mn{font-family:var(--mono);font-size:13px}
+.gd{font-family:var(--mono);font-weight:600;color:var(--gold)}
+.rb{display:inline-block;padding:2px 9px;border-radius:10px;background:var(--blue-dim);color:var(--blue);font-family:var(--mono);font-size:11.5px}
+.mb{display:flex;align-items:center;gap:7px}
+.mb-tr{flex:1;min-width:60px;height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.mb-fl{height:100%;border-radius:2px}
+.mb-pc{font-size:10.5px;color:var(--muted);font-family:var(--mono);width:28px;text-align:right}
+.tot td{background:rgba(74,140,255,.04)!important;font-weight:600;border-top:1px solid var(--border2)}
+.empty td{text-align:center;color:var(--muted);padding:36px}
+.sg{display:grid;grid-template-columns:1fr 340px;gap:20px}
+@media(max-width:860px){.sg{grid-template-columns:1fr}}
+.sc{background:var(--card);border:1px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:16px}
+.st{font-size:13px;font-weight:600;padding-bottom:14px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+.rr{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.rn{flex:1;font-size:13.5px;font-weight:500}
+.ri{width:82px!important;text-align:right;font-family:var(--mono)!important}
+.rt-tr{height:5px;background:var(--border);border-radius:3px;margin:14px 0 7px;overflow:hidden}
+.rt-fl{height:100%;border-radius:3px;transition:width .3s,background .3s}
+.rt-rw{display:flex;justify-content:space-between;font-size:11.5px;font-family:var(--mono)}
+.bchip{display:inline-block;padding:2px 8px;margin:1px;border-radius:4px;font-size:10.5px;font-family:var(--mono);background:var(--surface);border:1px solid var(--border)}
+#loading{position:fixed;inset:0;background:rgba(8,11,18,.85);backdrop-filter:blur(10px);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px}
+.sp{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--blue);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.lmsg{font-size:13px;color:var(--dim);font-family:var(--mono)}
+</style>
+</head>
+<body>
+<div id="setup" class="z1">
+  <div class="setup-box">
+    <div class="setup-logo">💹</div>
+    <div class="setup-title">ソーシャルナビ 報酬分配システム</div>
+    <p class="setup-desc">データを読み込んでいます。しばらくお待ちください。</p>
+    <div id="serr" class="alert alert-error hidden"></div>
+    <div id="manual-login" style="display:none">
+      <div class="fg">
+        <label class="lbl">Google Sheets API キー</label>
+        <input type="password" id="ikey" class="inp" placeholder="AIzaSy..."/>
+        <p class="help">自動接続に失敗しました。APIキーを手動で入力してください。</p>
+      </div>
+      <button class="btn btn-primary btn-full" id="btnConn" onclick="connect()">🔗 接続してデータ読み込み</button>
+    </div>
+    <div style="text-align:center;margin-top:14px">
+      <button class="btn btn-secondary btn-sm" onclick="loadDemo()">デモデータで確認する</button>
+    </div>
+  </div>
+</div>
+<div id="app">
+  <header>
+    <div class="hdr">
+      <div class="brand">
+        <div class="brand-icon">💹</div>
+        <div><div class="brand-name">RewardDash</div><div class="brand-sub">ソーシャルナビ 報酬分配システム</div></div>
+      </div>
+      <div class="conn-badge">
+        <div class="conn-dot"></div>
+        <span id="connLabel">接続済み</span>
+        <span style="margin-left:10px;color:var(--border2)">|</span>
+        <span id="memCount" style="margin-left:10px">— 名</span>
+        <button class="btn btn-secondary btn-sm" style="margin-left:12px" onclick="refreshAll()">🔄</button>
+      </div>
+    </div>
+  </header>
+  <div class="wrap z1">
+    <div class="tabs">
+      <button class="tab-btn active" onclick="sw('dashboard')">📊 ダッシュボード</button>
+      <button class="tab-btn" onclick="sw('fund')">📈 運用状況</button>
+      <button class="tab-btn" onclick="sw('distribution')">💰 分配計算</button>
+      <button class="tab-btn" onclick="sw('clients')">👥 クライアント</button>
+      <button class="tab-btn" onclick="sw('vex')">🔢 報酬計算</button>
+      <button class="tab-btn" onclick="sw('network')">🕸️ 紹介ネットワーク</button>
+      <button class="tab-btn" onclick="sw('history')">📒 清算履歴</button>
+      <button class="tab-btn" onclick="sw('payment')">💳 支払い管理</button>
+      <button class="tab-btn" onclick="sw('vexstatus')">📋 準備状況</button>
+      <button class="tab-btn" onclick="sw('settings')">⚙️ 設定</button>
+    </div>
+    <div id="tab-dashboard" class="tab-pane active">
+      <div class="toolbar">
+        <span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.1em">年:</span>
+        <div class="pills" id="yrPills"></div>
+        <span style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.1em;margin-left:6px">月:</span>
+        <div class="pills" id="moPills"></div>
+        <div class="ml-auto"></div>
+      </div>
+      <div class="stat-grid" id="statGrid"></div>
+      <div class="chart-card">
+        <div class="card-ttl">メンバー別収益 <span class="badge" id="chartLbl">—</span></div>
+        <div class="ch-wrap"><canvas id="mainChart"></canvas></div>
+      </div>
+      <div class="tbl-card">
+        <div class="tbl-hdr"><div class="tbl-ttl">収益・分配額一覧</div><div class="tbl-sub" id="tblPeriod">—</div></div>
+        <table><thead><tr><th>メンバー</th><th>月次収益</th><th>年間総利益</th><th>割合</th><th>分配額（月次）</th><th>進捗</th></tr></thead>
+        <tbody id="mainTbody"><tr class="empty"><td colspan="6">データを読み込んでください</td></tr></tbody></table>
+      </div>
+    </div>
+    <div id="tab-distribution" class="tab-pane">
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:20px">
+        <div class="tbl-card">
+          <div class="tbl-hdr"><div class="tbl-ttl">📅 月次分配サマリー</div><div class="tbl-sub" id="distYrLbl">—</div></div>
+          <table><thead><tr><th>月</th><th>合計収益</th><th id="distMemHdr">メンバー別分配額</th></tr></thead>
+          <tbody id="distTbody"></tbody></table>
+        </div>
+        <div class="sc"><div class="st">💡 現在の割合設定</div><div id="curRatio"></div>
+          <div style="margin-top:14px"><button class="btn btn-secondary btn-full btn-sm" onclick="sw('settings')">割合を変更 →</button></div>
+        </div>
+      </div>
+    </div>
+    <div id="tab-clients" class="tab-pane">
+      <div class="tbl-card">
+        <div class="tbl-hdr"><div class="tbl-ttl">👥 クライアント情報（運用状況）</div><div class="tbl-sub" id="cliCount">—</div></div>
+        <table><thead><tr><th>顧客番号</th><th>名前</th><th>グループ</th><th>銀行残高</th><th>口座残高（主要）</th></tr></thead>
+        <tbody id="cliTbody"><tr class="empty"><td colspan="5">データを読み込んでください</td></tr></tbody></table>
+      </div>
+    </div>
+    <div id="tab-vex" class="tab-pane">
+
+      <!-- 上部：タブ切替（単独計算 / 一括計算 / 清算スケジュール） -->
+      <div style="display:flex;gap:6px;margin-bottom:20px">
+        <button class="pill active" id="vex-tab-single" onclick="vexSwitchTab('single')" style="border-radius:var(--r-sm)">🔢 単独計算</button>
+        <button class="pill" id="vex-tab-batch" onclick="vexSwitchTab('batch')" style="border-radius:var(--r-sm)">👥 一括計算</button>
+        <button class="pill" id="vex-tab-schedule" onclick="vexSwitchTab('schedule')" style="border-radius:var(--r-sm)">📅 清算スケジュール</button>
+        <button class="pill" id="vex-tab-rule" onclick="vexSwitchTab('rule')" style="border-radius:var(--r-sm)">📐 分配ルール</button>
+      </div>
+
+      <!-- ① 単独計算 -->
+      <div id="vex-pane-single">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <div class="sc">
+            <div class="st">📋 利用者情報を入力</div>
+            <div class="fg">
+              <label class="lbl">利用者名</label>
+              <input class="inp" id="vex-name" placeholder="例：田中太郎" oninput="vexCalc()"/>
+            </div>
+            <div class="fg">
+              <label class="lbl">資金タイプ</label>
+              <div style="display:flex;gap:10px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 16px;border:1px solid var(--border);border-radius:var(--r-sm);flex:1;transition:border .2s" id="lbl-own">
+                  <input type="radio" name="vex-type" id="vex-own" value="own" onchange="vexCalc()" style="width:auto;accent-color:var(--blue)"/>
+                  <div>
+                    <div style="font-size:13px;font-weight:500">自己資金</div>
+                    <div style="font-size:11px;color:var(--muted)">ユーザー取り分 30%</div>
+                  </div>
+                </label>
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 16px;border:1px solid var(--border);border-radius:var(--r-sm);flex:1;transition:border .2s" id="lbl-fund">
+                  <input type="radio" name="vex-type" id="vex-fund" value="fund" onchange="vexCalc()" style="width:auto;accent-color:var(--gold)"/>
+                  <div>
+                    <div style="font-size:13px;font-weight:500">資金提供</div>
+                    <div style="font-size:11px;color:var(--muted)">ユーザー取り分 15%</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            <div class="fg">
+              <label class="lbl">月次利益（円）</label>
+              <input class="inp" id="vex-profit" type="number" placeholder="例：500000" oninput="vexCalc()" style="font-family:var(--mono)"/>
+            </div>
+            <div class="fg">
+              <label class="lbl">運用開始月</label>
+              <input class="inp" id="vex-start" type="month" oninput="vexCalc()" style="font-family:var(--mono)"/>
+              <p class="help">清算対象かどうかの判定に使用します（2ヶ月未満は次の清算月へ）</p>
+            </div>
+            <div class="fg">
+              <label class="lbl">直紹介者名（任意）</label>
+              <input class="inp" id="vex-ref1" placeholder="例：鈴木一郎" oninput="vexCalc()"/>
+            </div>
+            <div class="fg" style="margin-bottom:0">
+              <label class="lbl">間接紹介者名（任意）</label>
+              <input class="inp" id="vex-ref2" placeholder="例：佐藤花子" oninput="vexCalc()"/>
+            </div>
+          </div>
+          <div class="sc">
+            <div class="st">💰 報酬分配結果</div>
+            <div id="vex-result-body" style="color:var(--muted);font-size:13px;text-align:center;padding:24px 0">
+              左で利用者情報を入力してください
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② 一括計算（クライアント情報連動） -->
+      <div id="vex-pane-batch" style="display:none">
+        <div style="display:flex;gap:10px;margin-bottom:16px">
+          <button class="btn btn-secondary btn-sm" onclick="vexLoadFromClients()">📥 クライアント情報から読込</button>
+          <button class="btn btn-secondary btn-sm" onclick="vexAddRow()">＋ 手動追加</button>
+          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+            対象月: <input type="month" id="vex-batch-month" class="inp" style="width:150px;padding:6px 10px;font-size:12px" oninput="renderVexBatch()"/>
+          </div>
+        </div>
+        <div class="tbl-card">
+          <div class="tbl-hdr">
+            <div class="tbl-ttl">👥 利用者一覧 & 報酬計算</div>
+            <div class="tbl-sub" id="vex-batch-count">0名</div>
+          </div>
+          <div style="overflow-x:auto">
+            <table style="min-width:1100px">
+              <thead><tr>
+                <th>利用者名</th><th>資金タイプ</th><th>月次利益</th>
+                <th style="color:#a5c4ff">ユーザー手取り</th>
+                <th style="color:#a5c4ff">直紹介者</th><th style="color:#a5c4ff">直紹介報酬</th>
+                <th style="color:#a5c4ff">間接紹介者</th><th style="color:#a5c4ff">間接紹介報酬</th>
+                <th style="color:var(--gold)">運営</th>
+                <th style="color:var(--green)">リスク管理</th>
+                <th>清算</th><th></th>
+              </tr></thead>
+              <tbody id="vex-batch-tbody">
+                <tr class="empty"><td colspan="12">「クライアント情報から読込」または「手動追加」でデータを追加してください</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:14px 20px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
+            <div style="font-size:12px"><span style="color:var(--muted)">ユーザー手取り合計</span><br><span id="vex-total-user" style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--text)">¥0</span></div>
+            <div style="font-size:12px"><span style="color:var(--muted)">直紹介報酬合計</span><br><span id="vex-total-ref1" style="font-family:var(--mono);font-weight:600;font-size:15px;color:#a5c4ff">¥0</span></div>
+            <div style="font-size:12px"><span style="color:var(--muted)">間接紹介報酬合計</span><br><span id="vex-total-ref2" style="font-family:var(--mono);font-weight:600;font-size:15px;color:#a5c4ff">¥0</span></div>
+            <div style="font-size:12px"><span style="color:var(--muted)">運営合計（複利運用）</span><br><span id="vex-total-ops" style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--gold)">¥0</span></div>
+            <div style="font-size:12px"><span style="color:var(--muted)">リスク管理合計（複利運用）</span><br><span id="vex-total-risk" style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--green)">¥0</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ③ 清算スケジュール -->
+      <div id="vex-pane-schedule" style="display:none">
+        <div class="sc" style="margin-bottom:20px">
+          <div class="st">📅 清算スケジュール（3・6・9・12月末締め）</div>
+          <p style="font-size:13px;color:var(--dim);line-height:1.9;margin-bottom:16px">
+            ユーザーおよび紹介者への報酬は<strong style="color:var(--blue)">3月・6月・9月・12月末締め、翌月10日前後払い</strong>で清算されます。<br>
+            <strong style="color:var(--gold)">締め月末時点で運用期間が2ヶ月未満の場合は次の締め月へ繰り越し</strong>されます。<br>
+            リスク管理・運営の報酬は複利で運用されます。
+          </p>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px">
+            ${[
+              ['3月末締め','1月・2月・3月の3ヶ月分','4月10日前後払い','var(--blue)','1〜3月開始が対象（2ヶ月以上）'],
+              ['6月末締め','4月・5月・6月の3ヶ月分','7月10日前後払い','var(--green)','4〜6月開始が対象（2ヶ月以上）'],
+              ['9月末締め','7月・8月・9月の3ヶ月分','10月10日前後払い','var(--gold)','7〜9月開始が対象（2ヶ月以上）'],
+              ['12月末締め','10月・11月・12月の3ヶ月分','翌1月10日前後払い','#a855f7','10〜12月開始が対象（2ヶ月以上）'],
+             ].map(([mo,period,payDay,col,note])=>`
+              <div style="background:var(--card2);border:1px solid var(--border);border-radius:var(--r);padding:16px">
+                <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:${col};margin-bottom:8px">${mo}</div>
+                <div style="font-size:12px;color:var(--text);margin-bottom:6px">📋 ${period}</div>
+                <div style="font-size:12px;color:var(--green);margin-bottom:4px">💳 ${payDay}</div>
+                <div style="font-size:11px;color:var(--muted)">${note}</div>
+              </div>`).join('')}
+          </div>
+        </div>
+        <div class="tbl-card">
+          <div class="tbl-hdr">
+            <div class="tbl-ttl">清算対象チェック</div>
+            <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
+              清算月: <select id="settlement-month" class="inp" style="width:120px;padding:6px 10px;font-size:12px" onchange="renderSettlement()">
+                <option value="3">3月</option><option value="6">6月</option>
+                <option value="9">9月</option><option value="12">12月</option>
+              </select>
+              <input type="number" id="settlement-year" class="inp" style="width:90px;padding:6px 10px;font-size:12px" value="2026" onchange="renderSettlement()"/> 年
+            </div>
+          </div>
+          <table>
+            <thead><tr><th>利用者名</th><th>資金タイプ</th><th>運用開始</th><th>運用期間</th><th>清算判定</th><th>3ヶ月累計利益</th><th>ユーザー報酬（3ヶ月分）</th></tr></thead>
+            <tbody id="settlement-tbody"><tr class="empty"><td colspan="7">一括計算タブでデータを入力してください</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ④ 分配ルール -->
+      <div id="vex-pane-rule" style="display:none">
+        <div class="sc">
+          <div class="st">📐 VEX 分配ルール（売上100%の内訳）</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:20px">
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--blue);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+                自己資金利用者<span style="font-size:11px;color:var(--muted);margin-left:8px">（グループ欄: 自己資金）</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:0">
+                ${[['ユーザー手取り','30%','var(--text)','var(--blue-dim)'],
+                   ['直紹介者報酬','10%','#a5c4ff','rgba(74,140,255,.08)'],
+                   ['間接紹介者報酬','5%','#a5c4ff','rgba(74,140,255,.05)'],
+                   ['運営（複利運用）','5%','var(--gold)','var(--gold-dim)'],
+                   ['リスク管理（複利運用）','50%','var(--green)','rgba(52,199,138,.08)'],
+                  ].map(([label,pct,tc,bg])=>`
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:${bg};border-bottom:1px solid var(--border)">
+                    <span style="font-size:13px;color:var(--dim)">${label}</span>
+                    <span style="font-family:var(--mono);font-weight:700;font-size:16px;color:${tc}">${pct}</span>
+                  </div>`).join('')}
+              </div>
+            </div>
+            <div>
+              <div style="font-size:14px;font-weight:600;color:var(--gold);margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+                資金提供利用者<span style="font-size:11px;color:var(--muted);margin-left:8px">（グループ欄: 空欄）</span>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:0">
+                ${[['ユーザー手取り','15%','var(--text)','var(--gold-dim)'],
+                   ['直紹介者報酬','5%','#a5c4ff','rgba(74,140,255,.08)'],
+                   ['間接紹介者報酬','5%','#a5c4ff','rgba(74,140,255,.05)'],
+                   ['運営（複利運用）','25%','var(--gold)','var(--gold-dim)'],
+                   ['リスク管理（複利運用）','50%','var(--green)','rgba(52,199,138,.08)'],
+                  ].map(([label,pct,tc,bg])=>`
+                  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;background:${bg};border-bottom:1px solid var(--border)">
+                    <span style="font-size:13px;color:var(--dim)">${label}</span>
+                    <span style="font-family:var(--mono);font-weight:700;font-size:16px;color:${tc}">${pct}</span>
+                  </div>`).join('')}
+              </div>
+            </div>
+          </div>
+          <div class="alert alert-info" style="font-size:13px;line-height:1.8">
+            🔄 <strong>リスク管理・運営の報酬は複利で運用</strong>されます。毎月の利益から自動的に積み立てられ、利益の最大化を図ります。<br>
+            📅 ユーザー・紹介者への清算は <strong>3・6・9・12月末締め、翌月10日前後払い</strong>（3ヶ月ごと）で行われます。
+          </div>
+        </div>
+      </div>
+
+    </div>
+    <!-- 📈 運用状況タブ（運営・リスク管理の可視化） -->
+    <div id="tab-fund" class="tab-pane">
+      <!-- サマリーカード -->
+      <div class="stat-grid" id="fund-stat-grid" style="margin-bottom:22px">
+        <div class="stat-card"><div class="stat-lbl">リスク管理 累積（全期間）</div><div class="stat-val" id="fund-risk-total" style="color:var(--green)">¥0</div><div class="stat-sub">複利運用中</div></div>
+        <div class="stat-card"><div class="stat-lbl">運営 累積（全期間）</div><div class="stat-val" id="fund-ops-total" style="color:var(--gold)">¥0</div><div class="stat-sub">複利運用中</div></div>
+        <div class="stat-card"><div class="stat-lbl">リスク管理 当月</div><div class="stat-val" id="fund-risk-month" style="color:var(--green)">¥0</div><div class="stat-sub" id="fund-month-lbl">—</div></div>
+        <div class="stat-card"><div class="stat-lbl">運営 当月</div><div class="stat-val" id="fund-ops-month" style="color:var(--gold)">¥0</div><div class="stat-sub" id="fund-month-lbl2">—</div></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:22px">
+        <!-- 月次推移グラフ -->
+        <div class="chart-card">
+          <div class="card-ttl">月次 リスク管理・運営 推移 <span class="badge" id="fund-chart-lbl">—</span></div>
+          <div class="ch-wrap"><canvas id="fundChart"></canvas></div>
+        </div>
+        <!-- 累積グラフ -->
+        <div class="chart-card">
+          <div class="card-ttl">累積 積立額（複利シミュレーション）</div>
+          <div class="ch-wrap"><canvas id="fundCumChart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- 月次明細テーブル -->
+      <div class="tbl-card">
+        <div class="tbl-hdr">
+          <div class="tbl-ttl">月次明細</div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <span style="font-size:11px;color:var(--muted)">年:</span>
+            <div class="pills" id="fund-yr-pills"></div>
+          </div>
+        </div>
+        <table>
+          <thead><tr><th>月</th><th>月次合計売上</th><th style="color:var(--green)">リスク管理（50%）</th><th style="color:var(--gold)">運営（自己資金5% / 資金提供25%）</th><th>リスク管理 累積</th><th>運営 累積</th></tr></thead>
+          <tbody id="fund-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- 複利シミュレーション -->
+      <div class="sc" style="margin-top:20px">
+        <div class="st">💹 複利運用シミュレーション</div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:16px">
+          <div class="fg" style="margin:0">
+            <label class="lbl">初期元本（円）</label>
+            <input class="inp" id="sim-principal" type="number" value="0" oninput="runSim()" style="font-family:var(--mono)"/>
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="lbl">月次積立額（円）</label>
+            <input class="inp" id="sim-monthly" type="number" value="500000" oninput="runSim()" style="font-family:var(--mono)"/>
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="lbl">月次運用利回り（%）</label>
+            <input class="inp" id="sim-rate" type="number" value="5" step="0.1" oninput="runSim()" style="font-family:var(--mono)"/>
+          </div>
+          <div class="fg" style="margin:0">
+            <label class="lbl">運用期間（ヶ月）</label>
+            <input class="inp" id="sim-months" type="number" value="24" oninput="runSim()" style="font-family:var(--mono)"/>
+          </div>
+        </div>
+        <div class="ch-wrap" style="height:220px;margin-bottom:16px"><canvas id="simChart"></canvas></div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px" id="sim-result"></div>
+      </div>
+    </div>
+
+    <!-- 🕸️ 紹介ネットワーク管理タブ -->
+    <div id="tab-network" class="tab-pane">
+      <div style="display:grid;grid-template-columns:340px 1fr;gap:20px">
+        <!-- 左：登録フォーム -->
+        <div>
+          <div class="sc">
+            <div class="st">➕ 紹介関係を登録</div>
+            <div class="fg">
+              <label class="lbl">利用者名</label>
+              <input class="inp" id="net-user" placeholder="例：田中太郎" list="net-user-list"/>
+              <datalist id="net-user-list"></datalist>
+            </div>
+            <div class="fg">
+              <label class="lbl">直紹介者名</label>
+              <input class="inp" id="net-ref1" placeholder="例：鈴木一郎（直接紹介した人）" list="net-ref1-list"/>
+              <datalist id="net-ref1-list"></datalist>
+            </div>
+            <div class="fg" style="margin-bottom:0">
+              <label class="lbl">間接紹介者名</label>
+              <input class="inp" id="net-ref2" placeholder="例：佐藤花子（直紹介者の紹介者）" list="net-ref2-list"/>
+              <datalist id="net-ref2-list"></datalist>
+              <p class="help">直紹介者をさらに紹介した人（空欄可）</p>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:8px">
+              <button class="btn btn-primary" style="flex:1" onclick="netSave()">💾 登録・更新</button>
+              <button class="btn btn-secondary btn-sm" onclick="netClear()">クリア</button>
+            </div>
+            <div id="net-msg" class="alert hidden" style="margin-top:10px"></div>
+          </div>
+          <div class="sc" style="margin-top:0">
+            <div class="st">📊 ネットワーク統計</div>
+            <div id="net-stats" style="font-size:13px;color:var(--dim);line-height:2.2"></div>
+          </div>
+        </div>
+        <!-- 右：ネットワーク一覧 -->
+        <div>
+          <div class="tbl-card">
+            <div class="tbl-hdr">
+              <div class="tbl-ttl">🕸️ 紹介ネットワーク一覧</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <input class="inp" id="net-search" placeholder="名前で検索..." oninput="renderNetworkTab()" style="width:160px;padding:6px 10px;font-size:12px"/>
+                <div class="tbl-sub" id="net-count">0件</div>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th>利用者</th><th>資金タイプ</th><th>直紹介者</th><th>間接紹介者</th><th>紹介チェーン</th><th></th></tr></thead>
+              <tbody id="net-tbody"><tr class="empty"><td colspan="6">紹介関係を登録してください</td></tr></tbody>
+            </table>
+          </div>
+          <!-- ツリービジュアル -->
+          <div class="chart-card" style="margin-top:0">
+            <div class="card-ttl">🌳 紹介ツリー（クリックで展開）</div>
+            <div id="net-tree" style="font-size:13px;padding:8px 0;max-height:360px;overflow-y:auto"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 📒 清算履歴タブ -->
+    <div id="tab-history" class="tab-pane">
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:20px">
+        <!-- 左：履歴テーブル -->
+        <div>
+          <div class="tbl-card">
+            <div class="tbl-hdr">
+              <div class="tbl-ttl">📒 清算履歴</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <select id="hist-filter-year" class="inp" style="width:100px;padding:6px 10px;font-size:12px" onchange="renderHistoryTab()">
+                  <option value="">全年</option>
+                </select>
+                <select id="hist-filter-month" class="inp" style="width:100px;padding:6px 10px;font-size:12px" onchange="renderHistoryTab()">
+                  <option value="">全清算月</option>
+                  <option value="3">3月</option>
+                  <option value="6">6月</option>
+                  <option value="9">9月</option>
+                  <option value="12">12月</option>
+                </select>
+                <div class="tbl-sub" id="hist-count">0件</div>
+              </div>
+            </div>
+            <div style="overflow-x:auto">
+              <table style="min-width:900px">
+                <thead><tr>
+                  <th>清算日</th><th>利用者</th><th>資金タイプ</th><th>対象期間</th>
+                  <th>累計利益</th><th>ユーザー報酬</th><th>直紹介報酬</th><th>間接紹介報酬</th><th>メモ</th><th></th>
+                </tr></thead>
+                <tbody id="hist-tbody"><tr class="empty"><td colspan="10">清算履歴を記録してください</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+          <!-- サマリーカード -->
+          <div class="stat-grid" id="hist-stat-grid" style="margin-top:16px"></div>
+        </div>
+        <!-- 右：新規記録フォーム -->
+        <div>
+          <div class="sc">
+            <div class="st">➕ 清算実績を記録</div>
+            <div class="fg">
+              <label class="lbl">清算年月</label>
+              <input class="inp" id="hist-ym" type="month" style="font-family:var(--mono)"/>
+            </div>
+            <div class="fg">
+              <label class="lbl">利用者名</label>
+              <input class="inp" id="hist-user" placeholder="例：田中太郎" list="hist-user-list"/>
+              <datalist id="hist-user-list"></datalist>
+            </div>
+            <div class="fg">
+              <label class="lbl">資金タイプ</label>
+              <select class="inp" id="hist-type" style="font-family:var(--sans)">
+                <option value="own">自己資金（30%）</option>
+                <option value="fund">資金提供（15%）</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="lbl">対象期間（例: 2026年1〜3月）</label>
+              <input class="inp" id="hist-period" placeholder="例：2026年1〜3月"/>
+            </div>
+            <div class="fg">
+              <label class="lbl">3ヶ月累計利益（円）</label>
+              <input class="inp" id="hist-profit" type="number" placeholder="0" oninput="histCalcPreview()" style="font-family:var(--mono)"/>
+            </div>
+            <!-- 自動計算プレビュー -->
+            <div id="hist-preview" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;margin-bottom:14px;display:none">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px">自動計算プレビュー</div>
+              <div id="hist-preview-rows" style="font-size:12.5px;line-height:2"></div>
+            </div>
+            <div class="fg">
+              <label class="lbl">直紹介者名（任意）</label>
+              <input class="inp" id="hist-ref1" placeholder="例：鈴木一郎" list="hist-ref1-list"/>
+              <datalist id="hist-ref1-list"></datalist>
+            </div>
+            <div class="fg">
+              <label class="lbl">間接紹介者名（任意）</label>
+              <input class="inp" id="hist-ref2" placeholder="例：佐藤花子" list="hist-ref2-list"/>
+              <datalist id="hist-ref2-list"></datalist>
+            </div>
+            <div class="fg" style="margin-bottom:0">
+              <label class="lbl">メモ（任意）</label>
+              <input class="inp" id="hist-memo" placeholder="例：振込済み、確認待ちなど"/>
+            </div>
+            <div style="margin-top:16px">
+              <button class="btn btn-primary btn-full" onclick="histSave()">📒 履歴に記録</button>
+            </div>
+            <div id="hist-msg" class="alert hidden" style="margin-top:10px"></div>
+          </div>
+          <div class="sc" style="margin-top:0">
+            <div class="st">⚠️ 履歴管理</div>
+            <p style="font-size:12.5px;color:var(--muted);line-height:1.8;margin-bottom:12px">履歴はブラウザのローカルストレージに保存されます。</p>
+            <button class="btn btn-secondary btn-full btn-sm" onclick="histExportCSV()">📤 CSV出力</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 💳 支払い管理タブ -->
+    <div id="tab-payment" class="tab-pane">
+      <!-- ツールバー -->
+      <div class="toolbar" style="margin-bottom:18px">
+        <button class="btn btn-primary btn-sm" onclick="loadBankTransfers()">🔄 データを読み込む</button>
+        <button class="btn btn-secondary btn-sm" onclick="openBankForm()">➕ 新規追加</button>
+        <div style="font-size:12px;color:var(--muted);margin-left:8px" id="payment-last-load"></div>
+        <div class="ml-auto"></div>
+        <select class="inp" id="bank-filter-type" onchange="renderBankTab()" style="width:110px;padding:6px 10px;font-size:12px">
+          <option value="">全タイプ</option>
+          <option value="自己資金">自己資金</option>
+          <option value="資金提供">資金提供</option>
+        </select>
+        <select class="inp" id="bank-filter-status" onchange="renderBankTab()" style="width:110px;padding:6px 10px;font-size:12px">
+          <option value="">全ステータス</option>
+          <option value="未送金">未送金</option>
+          <option value="送金済み">送金済み</option>
+        </select>
+        <input class="inp" id="payment-search" placeholder="名前で検索..." oninput="renderBankTab()" style="width:150px;padding:6px 10px;font-size:12px"/>
+      </div>
+
+      <!-- サマリーカード -->
+      <div class="stat-grid" style="margin-bottom:22px">
+        <div class="stat-card"><div class="stat-lbl">自己資金</div><div class="stat-val" id="pay-count-own" style="color:var(--green)">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">資金提供</div><div class="stat-val" id="pay-count-fund" style="color:var(--blue)">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">未送金</div><div class="stat-val" id="pay-count-pending" style="color:var(--gold)">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">送金済み</div><div class="stat-val" id="pay-count-done" style="color:var(--green)">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">振込合計</div><div class="stat-val" id="pay-total" style="color:var(--text)">¥0</div></div>
+        <div class="stat-card"><div class="stat-lbl">報酬合計</div><div class="stat-val" id="pay-reward-total" style="color:var(--gold)">¥0</div></div>
+      </div>
+
+      <!-- 銀行送金一覧テーブル -->
+      <div class="tbl-card">
+        <div class="tbl-hdr">
+          <div class="tbl-ttl">💳 銀行送金一覧</div>
+          <div class="tbl-sub" id="payment-count">0件</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="min-width:1100px">
+            <thead><tr>
+              <th>タイプ</th>
+              <th>名前</th>
+              <th>銀行情報</th>
+              <th>振込金額</th>
+              <th>実際の報酬額</th>
+              <th style="background:rgba(138,100,255,.08);color:#b49dff">本人報酬</th>
+              <th style="background:rgba(52,199,138,.08);color:#34c78a">直紹介</th>
+              <th style="background:rgba(232,168,74,.08);color:#e8a84a">間接紹介</th>
+              <th>振込予定日</th>
+              <th>紹介者</th>
+              <th>ステータス</th>
+              <th>備考</th>
+              <th>操作</th>
+            </tr></thead>
+            <tbody id="payment-tbody">
+              <tr class="empty"><td colspan="13">「データを読み込む」ボタンで取得してください</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 紹介者別報酬サマリー -->
+      <div class="tbl-card" style="margin-top:16px">
+        <div class="tbl-hdr"><div class="tbl-ttl">🔗 紹介者別 報酬サマリー</div></div>
+        <table>
+          <thead><tr><th>紹介者名</th><th>直紹介人数</th><th>直紹介報酬合計</th><th>間接紹介報酬合計</th><th>合計報酬</th></tr></thead>
+          <tbody id="ref-summary-tbody">
+            <tr class="empty"><td colspan="5">データなし</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- 銀行送金 入力フォームモーダル -->
+    <div id="bank-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px">
+      <div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;padding:28px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="font-size:15px;font-weight:600" id="bank-modal-title">➕ 新規追加</div>
+          <button class="btn btn-secondary btn-sm" onclick="closeBankForm()">✕ 閉じる</button>
+        </div>
+        <input type="hidden" id="bank-row-index"/>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="fg" style="grid-column:1/-1">
+            <label class="lbl">名前</label>
+            <input class="inp" id="bank-name" placeholder="例：山田 太郎"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">タイプ</label>
+            <select class="inp" id="bank-type" onchange="updateBankRates()">
+              <option value="資金提供">資金提供</option>
+              <option value="自己資金">自己資金</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="lbl">送金ステータス</label>
+            <select class="inp" id="bank-status">
+              <option value="未送金">未送金</option>
+              <option value="送金済み">送金済み</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="lbl">銀行名</label>
+            <input class="inp" id="bank-bankname" placeholder="例：住信SBIネット銀行"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">支店名</label>
+            <input class="inp" id="bank-branch" placeholder="例：イチゴ支店"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">口座種別</label>
+            <select class="inp" id="bank-account-type">
+              <option value="普通">普通</option>
+              <option value="当座">当座</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="lbl">口座番号</label>
+            <input class="inp" id="bank-account-number" placeholder="例：3778593"/>
+          </div>
+          <div class="fg" style="grid-column:1/-1">
+            <label class="lbl">口座名義（カナ）</label>
+            <input class="inp" id="bank-holder" placeholder="例：ヤマダ タロウ"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">振込金額</label>
+            <input class="inp" id="bank-transfer-amount" type="number" placeholder="例：110000" oninput="updateBankRates()"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">実際の報酬額</label>
+            <input class="inp" id="bank-reward-amount" type="number" placeholder="例：110000" oninput="updateBankRates()"/>
+          </div>
+          <!-- 報酬内訳（自動計算） -->
+          <div style="grid-column:1/-1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:600">分配報酬内訳（自動計算）</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+              <div style="text-align:center">
+                <div style="font-size:10px;color:#b49dff;margin-bottom:4px">本人報酬 <span id="bank-rate-self">15%</span></div>
+                <div style="font-size:16px;font-family:var(--mono);font-weight:600;color:#b49dff" id="bank-calc-self">¥0</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--green);margin-bottom:4px">直紹介 <span id="bank-rate-direct">5%</span></div>
+                <div style="font-size:16px;font-family:var(--mono);font-weight:600;color:var(--green)" id="bank-calc-direct">¥0</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--gold);margin-bottom:4px">間接紹介 <span id="bank-rate-indirect">5%</span></div>
+                <div style="font-size:16px;font-family:var(--mono);font-weight:600;color:var(--gold)" id="bank-calc-indirect">¥0</div>
+              </div>
+            </div>
+          </div>
+          <div class="fg">
+            <label class="lbl">振込予定日</label>
+            <input class="inp" id="bank-date" placeholder="例：12/19"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">紹介者</label>
+            <input class="inp" id="bank-referrer" placeholder="例：三國"/>
+          </div>
+          <div class="fg" style="grid-column:1/-1">
+            <label class="lbl">備考</label>
+            <input class="inp" id="bank-note" placeholder="例：送金済み・5.5万三國さんへ紹介報酬"/>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px">
+          <button class="btn btn-primary btn-full" onclick="saveBankEntry()">💾 保存する</button>
+          <button class="btn btn-secondary btn-sm" id="bank-delete-btn" onclick="deleteBankEntry()" style="display:none;background:rgba(240,85,85,.1);border-color:var(--red);color:var(--red)">🗑 削除</button>
+        </div>
+        <div id="bank-form-msg" style="margin-top:12px;font-size:12px"></div>
+      </div>
+    </div>
+
+    <!-- 📋 VEX準備状況タブ -->
+    <div id="tab-vexstatus" class="tab-pane">
+      <div class="toolbar" style="margin-bottom:18px">
+        <button class="btn btn-primary btn-sm" onclick="loadVexStatus()">🔄 VEX準備状況を読み込む</button>
+        <div style="font-size:12px;color:var(--muted);margin-left:8px" id="vexstatus-last-load"></div>
+        <div class="ml-auto"></div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input class="inp" id="vexstatus-search" placeholder="名前・担当者で検索..." oninput="renderVexStatus()" style="width:180px;padding:6px 10px;font-size:12px"/>
+          <select class="inp" id="vexstatus-filter-type" onchange="renderVexStatus()" style="width:110px;padding:6px 10px;font-size:12px">
+            <option value="">全タイプ</option>
+            <option value="資金提供">資金提供</option>
+            <option value="自己資金">自己資金</option>
+          </select>
+          <select class="inp" id="vexstatus-filter-charge" onchange="renderVexStatus()" style="width:110px;padding:6px 10px;font-size:12px">
+            <option value="">全担当者</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- サマリーカード -->
+      <div class="stat-grid" id="vexstatus-stat-grid" style="margin-bottom:22px">
+        <div class="stat-card"><div class="stat-lbl">総ユーザー数</div><div class="stat-val" id="vs-total">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">全工程完了（6/6）</div><div class="stat-val" id="vs-done" style="color:var(--green)">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">進行中（1〜5/6）</div><div class="stat-val" id="vs-wip" style="color:var(--gold)">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">未着手（0/6）</div><div class="stat-val" id="vs-zero" style="color:var(--muted)">0名</div></div>
+      </div>
+
+      <!-- 進捗バー全体 -->
+      <div class="chart-card" style="margin-bottom:16px;padding:16px 22px">
+        <div class="card-ttl">全体進捗</div>
+        <div id="vs-progress-bars" style="display:flex;flex-direction:column;gap:10px"></div>
+      </div>
+
+      <!-- テーブル -->
+      <div class="tbl-card">
+        <div class="tbl-hdr">
+          <div class="tbl-ttl">📋 VEX準備状況一覧</div>
+          <div class="tbl-sub" id="vexstatus-count">0件</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="min-width:1000px">
+            <thead>
+              <tr>
+                <th>No</th><th>氏名</th><th>紹介者</th><th>担当者</th><th>資金タイプ</th>
+                <th style="color:var(--green)">①口座開設</th>
+                <th style="color:var(--green)">②LINE登録</th>
+                <th style="color:var(--green)">③PC発送</th>
+                <th style="color:var(--green)">④PC設置</th>
+                <th style="color:var(--green)">⑤資金準備</th>
+                <th style="color:var(--green)">⑥初回入金</th>
+                <th>進捗</th><th>備考</th>
+              </tr>
+            </thead>
+            <tbody id="vexstatus-tbody">
+              <tr class="empty"><td colspan="13">「VEX準備状況を読み込む」ボタンで取得してください</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⚙️ 設定タブ（VEX分配率 自動判定 + メンバー設定） -->
+    <div id="tab-settings" class="tab-pane">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+
+        <!-- VEX分配率 自動判定 -->
+        <div class="sc">
+          <div class="st">🔢 VEX 分配率設定（自動判定）</div>
+          <p style="font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:16px">
+            クライアント情報の「グループ」欄に基づいて自動で分配率が決まります。<br>
+            手動で上書きする場合のみ下記で変更してください。
+          </p>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
+            <div style="background:var(--blue-dim);border:1px solid rgba(74,140,255,.3);border-radius:var(--r);padding:16px">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--blue);margin-bottom:12px">自己資金（グループ: 自己資金）</div>
+              <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">ユーザー</span><span class="rb">30%</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">直紹介</span><span class="rb">10%</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">間接紹介</span><span class="rb">5%</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">運営</span><span class="rb">5%</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">リスク管理</span><span class="rb">50%</span></div>
+              </div>
+            </div>
+            <div style="background:var(--gold-dim);border:1px solid rgba(232,168,74,.3);border-radius:var(--r);padding:16px">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);margin-bottom:12px">資金提供（グループ: 空欄）</div>
+              <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">ユーザー</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">15%</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">直紹介</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">5%</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">間接紹介</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">5%</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">運営</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">25%</span></div>
+                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">リスク管理</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">50%</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="alert alert-info" style="font-size:12.5px;line-height:1.8">
+            📌 クライアント情報を読み込むと「グループ」欄を自動判定します。<br>
+            　「自己資金」→ 30%プラン / 空欄 → 15%プラン（資金提供）
+          </div>
+        </div>
+
+        <!-- 運営チーム内分配設定 -->
+        <div>
+          <div class="sc">
+            <div class="st">🏢 運営チーム 内部分配割合</div>
+            <p style="font-size:13px;color:var(--dim);line-height:1.7;margin-bottom:6px">
+              各ユーザーの売上から徴収された<strong style="color:var(--gold)">運営取り分（自己資金5% / 資金提供25%）</strong>を、運営チームで按分します。<br>
+              合計100%になるよう設定してください。
+            </p>
+            <!-- 運営取り分サマリー -->
+            <div id="ops-summary" style="background:var(--gold-dim);border:1px solid rgba(232,168,74,.25);border-radius:var(--r-sm);padding:10px 14px;margin-bottom:16px;font-size:12.5px;display:flex;justify-content:space-between;align-items:center">
+              <span style="color:var(--muted)">今月の運営取り分合計</span>
+              <span id="ops-total-val" style="font-family:var(--mono);font-weight:700;font-size:16px;color:var(--gold)">¥0</span>
+            </div>
+            <div id="ratioRows"></div>
+            <div class="rt-tr"><div class="rt-fl" id="rtFill"></div></div>
+            <div class="rt-rw"><span>合計</span><span id="rtTotal">0.0%</span></div>
+            <div id="rtAlert" class="alert hidden" style="margin-top:12px"></div>
+            <!-- 各メンバーの取り分プレビュー -->
+            <div id="ops-preview" style="margin-top:14px;padding:12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);font-size:12.5px;display:none">
+              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px">各メンバーの取り分（今月）</div>
+              <div id="ops-preview-rows"></div>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:16px">
+              <button class="btn btn-primary" style="flex:1" onclick="saveRatios()">💾 保存</button>
+              <button class="btn btn-secondary" onclick="equalRatios()">均等割り</button>
+            </div>
+            <div id="savedInfo" class="alert alert-info hidden" style="margin-top:12px;font-size:12px">最終保存: <span id="lastSaved">—</span></div>
+          </div>
+          <div class="sc">
+            <div class="st">📋 接続情報</div>
+            <div style="font-size:12.5px;color:var(--dim);line-height:2.2">
+              <div>📊 <strong>売上シート</strong></div>
+              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">鈴村年間収支表</div>
+              <div style="margin-top:6px">👥 <strong>クライアント情報</strong></div>
+              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">運用状況シート</div>
+              <div style="margin-top:6px">💳 <strong>支払いシート</strong></div>
+              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">1aFwtiDPD0VN64jeS48Wjvm9FmuealJyopGowM6-ouVM</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="loading" class="hidden"><div class="sp"></div><div class="lmsg" id="lmsg">読み込み中...</div></div>
+
+<script>
+const SALES_ID='1F07O3cwj7SlqEQKz5sz7L81vEiEqHKmM8Czg1cxHIAs';
+const CLIENT_ID='1nVhHCSLQLtkWZQ-cBYHEGL1qYyqfBKjYIX2uPySQQ2c';
+const PAYMENT_ID='1PhCM_xXwsDqFRcABHXeWVM1LZ7NkZt2PuPvxj6HGPcw';
+const VEX_STATUS_ID='161CoqauS6weOsIIkqRTrIaDZ5qrDzI5cZr62q2v4hkk';
+const SALES_SHEET='鈴村年間収支表';
+const CLIENT_SHEET='運用状況';
+const PAYMENT_SHEET='銀行送金';
+const VEX_STATUS_SHEET='VEX準備状況v2';
+// 運営チームメンバー（固定）
+const OPS_TEAM = ['中野','中原','種田','松村','小川','後藤'];
+const COL_MAP={};
+// 実際の列構造（0始まりインデックス）:
+// [0]=空 [1]=名前 [2]=総利益 [3]=公開URL
+// [4]〜[14] = 2025年1月〜11月
+// [15] = P列 = ヘッダーは「公開URL（年指定）」だが実データは2025年12月
+// [16]=年間 [17]=空白
+// [18]〜[29] = 2026年1月〜12月
+for(let m=1;m<=11;m++) COL_MAP[3+m]={year:2025,month:m};   // 2025年1〜11月 → 列index4〜14
+COL_MAP[15]={year:2025,month:12};                           // 2025年12月 → 列index15（P列）
+for(let m=1;m<=12;m++) COL_MAP[17+m]={year:2026,month:m};  // 2026年1〜12月 → 列index18〜29
+const COLORS=['#4a8cff','#e8a84a','#34c78a','#a855f7','#f05555','#06b6d4','#84cc16','#f97316','#ec4899','#8b5cf6','#14b8a6','#f59e0b','#10b981','#6366f1','#ef4444'];
+const MN=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const S={apiKey:'',members:[],clients:{},distributions:{},opsDistributions:{},paymentData:[],vexStatusData:[],year:2026,month:new Date().getMonth()+1,chart:null,isDemo:false,payFilter:'all'};
+
+async function sheetsAPI(sheetId,range){
+  // シート名と範囲を分割してエンコード（日本語シート名対応）
+  const bangIdx = range.indexOf('!');
+  let encodedRange;
+  if(bangIdx >= 0){
+    const sheetName = range.substring(0, bangIdx);
+    const cellRange = range.substring(bangIdx + 1);
+    encodedRange = encodeURIComponent(sheetName) + '!' + cellRange;
+  } else {
+    encodedRange = encodeURIComponent(range);
+  }
+  const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodedRange}?key=${encodeURIComponent(S.apiKey)}`;
+  const r=await fetch(url);
+  const d=await r.json();
+  if(d.error) throw new Error(d.error.message);
+  return d.values||[];
+}
+
+function parseSales(values){
+  if(!values||values.length<6) return [];
+  const members=[];
+  for(let ri=5;ri<values.length;ri++){
+    const row=values[ri]||[];
+    const name=(row[1]||'').toString().trim();
+    if(!name||name==='名前'||name==='合計'||name==='小計') continue;
+    const totalProfit=parseFloat((row[2]||'').toString().replace(/[¥,\s]/g,''))||0;
+    const months={};
+    for(const [ci,{year,month}] of Object.entries(COL_MAP)){
+      const raw=(row[parseInt(ci)]||'').toString().trim();
+      // URL文字列はスキップして0扱い（https:// または script.google.com を含む場合）
+      const isUrl = raw.startsWith('http') || raw.includes('script.google.com');
+      const val = isUrl ? 0 : (parseFloat(raw.replace(/[¥,\s]/g,'').replace(/^-$/,'0'))||0);
+      if(!months[year]) months[year]={};
+      months[year][month]=val;
+    }
+    members.push({name,totalProfit,months});
+  }
+  return members;
+}
+
+function parseClients(values){
+  if(!values||values.length<4) return {};
+  const BROKER_COLS={XMTrading:5,BigBoss:6,FXGT:7,iFOREX:8,Vantage:9,Axiory:10,HFM:11};
+  const clients={};
+  for(let ri=3;ri<values.length;ri++){
+    const row=values[ri]||[];
+    const name=(row[1]||'').toString().trim();
+    if(!name||name==='名前') continue;
+    const bankBalance=parseFloat((row[4]||'').toString().replace(/[¥,\s]/g,''))||0;
+    const brokers={};
+    for(const [b,ci] of Object.entries(BROKER_COLS)) brokers[b]=parseFloat((row[ci]||'').toString().replace(/[¥,\s]/g,''))||0;
+    clients[name]={clientNo:(row[0]||'').toString().trim(),group:(row[3]||'').toString().trim(),bankBalance,brokers};
+  }
+  return clients;
+}
+
+async function connect(){
+  const keyEl=document.getElementById('ikey');
+  const key=(keyEl?keyEl.value:'').trim()||EMBEDDED_API_KEY;
+  if(!key){showErr('APIキーを入力してください');return;}
+  S.apiKey=key;
+  const btnConn=document.getElementById('btnConn');
+  if(btnConn) btnConn.disabled=true;
+  showLoad('スプレッドシートに接続中...');
+  try{
+    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AE60`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:R100`)]);
+    S.members=parseSales(sv);
+    S.clients=parseClients(cv);
+    if(!S.members.length) throw new Error('メンバーデータが取得できませんでした。\nスプレッドシートを「リンクを知っている全員が閲覧可能」に設定してください。');
+    const years=new Set();
+    S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
+    S.year=Math.max(...years);
+    loadSaved();
+    hideLoad();
+    document.getElementById('setup').style.display='none';
+    document.getElementById('app').style.display='block';
+    initApp();
+  }catch(e){
+    hideLoad();
+    if(btnConn) btnConn.disabled=false;
+    showErr('接続エラー: '+e.message);
+  }
+}
+
+// 自動接続（APIキー埋め込み済みの場合）
+const EMBEDDED_API_KEY = 'AIzaSyCXeOkm9x2hNZZ4UwiLWt68WS6X44VTE3g';
+window.addEventListener('DOMContentLoaded', async () => {
+  if(!EMBEDDED_API_KEY) return;
+  S.apiKey = EMBEDDED_API_KEY;
+  showLoad('接続中...');
+  try{
+    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AE60`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:R100`)]);
+    S.members=parseSales(sv);
+    S.clients=parseClients(cv);
+    if(!S.members.length) throw new Error('データなし');
+    const years=new Set();
+    S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
+    S.year=Math.max(...years);
+    loadSaved();
+    hideLoad();
+    document.getElementById('setup').style.display='none';
+    document.getElementById('app').style.display='block';
+    initApp();
+  }catch(e){
+    hideLoad();
+    // 自動接続失敗時は手動ログインフォームを表示
+    const ml = document.getElementById('manual-login');
+    if(ml) ml.style.display = '';
+  }
+});
+
+async function refreshAll(){
+  if(S.isDemo) return;
+  showLoad('再読込中...');
+  try{
+    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AE60`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:R100`)]);
+    S.members=parseSales(sv);S.clients=parseClients(cv);
+    hideLoad();renderAll();
+  }catch(e){hideLoad();alert('エラー: '+e.message);}
+}
+
+function loadDemo(){
+  S.isDemo=true;S.year=2026;S.month=1;
+  S.members=[
+    {name:'柳川浩司',totalProfit:1875517,months:{2025:{1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:303068,10:432831,11:-1625,12:344036},2026:{1:392382,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0}}},
+    {name:'金津尚樹',totalProfit:2147257,months:{2025:{1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:303067,10:583769,11:0,12:162686},2026:{1:529904,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0}}},
+    {name:'石田由美子',totalProfit:2217523,months:{2025:{1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:300901,10:628453,11:138364,12:90796},2026:{1:361190,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0}}},
+    {name:'吉武由美子',totalProfit:2623629,months:{2025:{1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:367745,10:272545,11:84045,12:383497},2026:{1:580023,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0}}},
+    {name:'小林真太郎',totalProfit:2126836,months:{2025:{1:0,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:401136,11:152611,12:219646},2026:{1:551875,2:0,3:0,4:0,5:0,6:0,7:0,8:0,9:0,10:0,11:0,12:0}}},
+  ];
+  S.clients={'柳川浩司':{clientNo:'256123194',group:'',bankBalance:1562595,brokers:{XMTrading:0,BigBoss:0,FXGT:651000,iFOREX:0,Vantage:0,Axiory:0,HFM:0}},'金津尚樹':{clientNo:'256804973',group:'',bankBalance:775,brokers:{XMTrading:0,BigBoss:0,FXGT:589000,iFOREX:0,Vantage:0,Axiory:0,HFM:0}},'石田由美子':{clientNo:'256807713',group:'',bankBalance:429,brokers:{XMTrading:0,BigBoss:0,FXGT:697000,iFOREX:0,Vantage:0,Axiory:0,HFM:0}}};
+  document.getElementById('setup').style.display='none';
+  document.getElementById('app').style.display='block';
+  initApp();
+}
+
+function loadSaved(){
+  try{
+    const s=localStorage.getItem('reward_dist');
+    if(s) S.distributions=JSON.parse(s);
+  }catch(e){}
+  try{
+    const o=localStorage.getItem('ops_dist');
+    if(o) S.opsDistributions=JSON.parse(o);
+    else {
+      // デフォルト：運営チームを均等割り
+      OPS_TEAM.forEach(name=>{ S.opsDistributions[name]=Math.floor(100/OPS_TEAM.length); });
+    }
+  }catch(e){}
+}
+function saveLs(){
+  localStorage.setItem('ops_dist',JSON.stringify(S.opsDistributions));
+  localStorage.setItem('reward_dist_time',new Date().toISOString());
+  document.getElementById('savedInfo').classList.remove('hidden');
+  document.getElementById('lastSaved').textContent=new Date().toLocaleString('ja-JP');
+}
+
+function initApp(){
+  // 運営チームのデフォルト割合を初期化
+  if(!Object.keys(S.opsDistributions).length){
+    OPS_TEAM.forEach(name=>{ S.opsDistributions[name]=Math.floor(100/OPS_TEAM.length); });
+  }
+  document.getElementById('memCount').textContent=S.members.length+' 名';
+  document.getElementById('connLabel').textContent=S.isDemo?'デモモード':'接続済み';
+  renderYrPills();renderMoPills();renderAll();loadSaved();
+}
+function renderAll(){renderStats();renderChart();renderMainTable();renderDistTab();renderCliTab();renderSettingsTab();renderCurRatio();}
+
+function getYears(){const s=new Set();S.members.forEach(m=>Object.keys(m.months).forEach(y=>s.add(parseInt(y))));return[...s].sort();}
+function renderYrPills(){document.getElementById('yrPills').innerHTML=getYears().map(y=>`<button class="pill yr${y===S.year?' active':''}" onclick="selYr(${y})">${y}年</button>`).join('');}
+function renderMoPills(){document.getElementById('moPills').innerHTML=MN.map((n,i)=>{const m=i+1;return`<button class="pill${m===S.month?' active':''}" onclick="selMo(${m})">${n}</button>`;}).join('');}
+function selYr(y){S.year=y;renderYrPills();renderAll();}
+function selMo(m){S.month=m;renderMoPills();renderAll();}
+
+function renderStats(){
+  const revs=S.members.map(m=>(m.months[S.year]||{})[S.month]||0);
+  const grand=revs.reduce((a,b)=>a+b,0);
+  const yTotal=S.members.reduce((s,m)=>s+(m.totalProfit||0),0);
+  const activeCount=S.members.filter(m=>((m.months[S.year]||{})[S.month]||0)>0).length;
+  const avg=activeCount?grand/activeCount:0;
+  // 今月の運営取り分合計（VEXルールで計算）
+  let totalOps=0;
+  S.members.forEach(m=>{
+    const rev=(m.months[S.year]||{})[S.month]||0;
+    if(!rev) return;
+    const type=getMemberVexType(m.name);
+    totalOps+=Math.round(rev*(type==='own'?0.05:0.25));
+  });
+  document.getElementById('statGrid').innerHTML=`
+    <div class="stat-card"><div class="stat-lbl">月次合計収益（${S.year}年${S.month}月）</div><div class="stat-val">¥${fmt(grand)}</div><div class="stat-sub">${activeCount}名（収益あり）/ 全${S.members.length}名</div></div>
+    <div class="stat-card"><div class="stat-lbl">1人あたり平均</div><div class="stat-val">¥${fmt(Math.round(avg))}</div><div class="stat-sub">収益あり${activeCount}名の平均</div></div>
+    <div class="stat-card"><div class="stat-lbl">年間累計（全メンバー）</div><div class="stat-val">¥${fmt(yTotal)}</div><div class="stat-sub">総利益合計</div></div>
+    <div class="stat-card"><div class="stat-lbl">今月の運営取り分</div><div class="stat-val" style="color:var(--gold)">¥${fmt(totalOps)}</div><div class="stat-sub">運営チームへ分配</div></div>`;
+}
+
+function renderChart(){
+  const lbl=`${S.year}年${S.month}月`;
+  document.getElementById('chartLbl').textContent=lbl;
+  document.getElementById('tblPeriod').textContent=lbl;
+  // 0円の人を除外
+  const activeMembers=S.members.filter(m=>((m.months[S.year]||{})[S.month]||0)>0);
+  const labels=activeMembers.map(m=>m.name);
+  const revs=activeMembers.map(m=>(m.months[S.year]||{})[S.month]||0);
+  const userTakes=activeMembers.map(m=>{
+    const rev=(m.months[S.year]||{})[S.month]||0;
+    const type=getMemberVexType(m.name);
+    return Math.round(rev*(type==='own'?0.30:0.15));
+  });
+  const ctx=document.getElementById('mainChart').getContext('2d');
+  if(S.chart) S.chart.destroy();
+  S.chart=new Chart(ctx,{type:'bar',data:{labels,datasets:[
+    {label:'月次収益',data:revs,backgroundColor:COLORS.slice(0,labels.length).map(c=>c+'28'),borderColor:COLORS.slice(0,labels.length),borderWidth:2,borderRadius:5,borderSkipped:false},
+    {label:'ユーザー手取り',data:userTakes,backgroundColor:'rgba(232,168,74,.18)',borderColor:'#e8a84a',borderWidth:2,borderRadius:5,borderSkipped:false}
+  ]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#8494aa',font:{size:12}}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ¥${fmt(c.raw)}`}}},scales:{x:{ticks:{color:'#596880',maxRotation:30},grid:{color:'rgba(255,255,255,.03)'}},y:{ticks:{color:'#596880',callback:v=>'¥'+fmtS(v)},grid:{color:'rgba(255,255,255,.03)'}}}}});
+}
+
+function renderMainTable(){
+  const grand=S.members.reduce((s,m)=>s+((m.months[S.year]||{})[S.month]||0),0);
+  // 0円の人を除外
+  const activeMembers=S.members.filter(m=>((m.months[S.year]||{})[S.month]||0)>0);
+  if(!activeMembers.length){document.getElementById('mainTbody').innerHTML='<tr class="empty"><td colspan="6">この月の収益データなし</td></tr>';return;}
+  let rows=activeMembers.map((m,i)=>{
+    const rev=(m.months[S.year]||{})[S.month]||0;
+    const type=getMemberVexType(m.name);
+    const userRate=type==='own'?0.30:0.15;
+    const userAmt=Math.round(rev*userRate);
+    const col=COLORS[S.members.indexOf(m)%COLORS.length];
+    const tc=type==='own'?'var(--blue)':'var(--gold)';
+    const typeLbl=type==='own'?'自己資金30%':'資金提供15%';
+    const bw=grand>0?Math.round(rev/grand*100):0;
+    return`<tr>
+      <td><div class="mc"><div class="av" style="background:${col}22;color:${col}">${m.name[0]}</div>${m.name}</div></td>
+      <td class="mn">¥${fmt(rev)}</td>
+      <td class="mn">¥${fmt(m.totalProfit||0)}</td>
+      <td><span class="rb" style="background:${type==='own'?'var(--blue-dim)':'var(--gold-dim)'};color:${tc}">${typeLbl}</span></td>
+      <td class="gd">¥${fmt(userAmt)}</td>
+      <td><div class="mb"><div class="mb-tr"><div class="mb-fl" style="width:${bw}%;background:${col}"></div></div><span class="mb-pc">${bw}%</span></div></td>
+    </tr>`;
+  });
+  rows.push(`<tr class="tot"><td>合計 <span style="font-size:11px;color:var(--muted);font-weight:400">(${activeMembers.length}名)</span></td><td class="mn">¥${fmt(grand)}</td><td class="mn">—</td><td>—</td><td class="gd">¥${fmt(activeMembers.reduce((s,m)=>{const rev=(m.months[S.year]||{})[S.month]||0;const t=getMemberVexType(m.name);return s+Math.round(rev*(t==='own'?0.30:0.15));},0))}</td><td></td></tr>`);
+  document.getElementById('mainTbody').innerHTML=rows.join('');
+}
+
+function renderDistTab(){
+  document.getElementById('distYrLbl').textContent=`${S.year}年`;
+  document.getElementById('distMemHdr').textContent='ユーザー手取り / 紹介報酬 / 運営取り分';
+  const rows=[];
+  for(let mo=1;mo<=12;mo++){
+    const revs=S.members.map(m=>(m.months[S.year]||{})[mo]||0);
+    const grand=revs.reduce((a,b)=>a+b,0);
+    let totUser=0,totRef=0,totOps=0;
+    S.members.forEach((m,i)=>{
+      const rev=revs[i]; if(!rev) return;
+      const type=getMemberVexType(m.name);
+      totUser+=Math.round(rev*(type==='own'?0.30:0.15));
+      totRef+=Math.round(rev*(type==='own'?0.15:0.10));
+      totOps+=Math.round(rev*(type==='own'?0.05:0.25));
+    });
+    const detail=grand>0?`<span style="font-size:11px;color:var(--blue)">手取:¥${fmtS(totUser)}</span>
+      <span style="color:var(--border2);margin:0 3px">/</span>
+      <span style="font-size:11px;color:#a5c4ff">紹介:¥${fmtS(totRef)}</span>
+      <span style="color:var(--border2);margin:0 3px">/</span>
+      <span style="font-size:11px;color:var(--gold)">運営:¥${fmtS(totOps)}</span>`:'<span style="color:var(--muted)">—</span>';
+    rows.push(`<tr style="${mo===S.month?'background:rgba(74,140,255,.04)':''}"><td style="font-weight:${mo===S.month?600:400}">${MN[mo-1]}${mo===S.month?'<span style="font-size:10px;color:var(--blue);margin-left:5px">◀</span>':''}</td><td class="mn">¥${fmt(grand)}</td><td>${detail}</td></tr>`);
+  }
+  document.getElementById('distTbody').innerHTML=rows.join('');
+}
+
+function renderCliTab(){
+  const ents=Object.entries(S.clients);
+  document.getElementById('cliCount').textContent=ents.length+'名';
+  if(!ents.length){document.getElementById('cliTbody').innerHTML='<tr class="empty"><td colspan="5">データなし</td></tr>';return;}
+  document.getElementById('cliTbody').innerHTML=ents.map(([name,c],i)=>{
+    const col=COLORS[i%COLORS.length];
+    const br=Object.entries(c.brokers||{}).filter(([,v])=>v>0).map(([b,v])=>`<span class="bchip">${b}: ¥${fmtS(v)}</span>`).join('')||'<span style="color:var(--muted);font-size:11px">—</span>';
+    return`<tr><td class="mn" style="font-size:11.5px;color:var(--muted)">${c.clientNo||'—'}</td><td><div class="mc"><div class="av" style="background:${col}22;color:${col}">${name[0]}</div>${name}</div></td><td style="font-size:12px;color:var(--dim)">${c.group||'資金提供'}</td><td class="mn">¥${fmt(c.bankBalance||0)}</td><td style="line-height:1.8">${br}</td></tr>`;
+  }).join('');
+}
+
+function renderSettingsTab(){
+  // 運営チームメンバーで割合入力を生成
+  document.getElementById('ratioRows').innerHTML=OPS_TEAM.map((name,i)=>{
+    const col=COLORS[i%COLORS.length],rat=S.opsDistributions[name]||0;
+    return`<div class="rr">
+      <div class="av" style="background:${col}22;color:${col};width:28px;height:28px;border-radius:50%;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${name[0]}</div>
+      <div class="rn">${name}</div>
+      <input type="number" class="inp ri" id="ri-${name}" value="${rat}" min="0" max="100" step="0.1" oninput="updRatio()"/>
+      <span style="font-size:12px;color:var(--muted)">%</span>
+    </div>`;
+  }).join('');
+  updRatio();
+  // 運営取り分サマリー更新
+  let totalOps=0;
+  S.members.forEach(m=>{
+    const rev=(m.months[S.year]||{})[S.month]||0;
+    if(!rev) return;
+    const type=getMemberVexType(m.name);
+    totalOps+=Math.round(rev*(type==='own'?0.05:0.25));
+  });
+  const opsEl=document.getElementById('ops-total-val');
+  if(opsEl) opsEl.textContent='¥'+fmt(totalOps);
+}
+
+function updRatio(){
+  let tot=0;
+  OPS_TEAM.forEach(name=>{const v=parseFloat(document.getElementById(`ri-${name}`)?.value||0);if(!isNaN(v)) tot+=v;});
+  const ok=Math.abs(tot-100)<0.05,ov=tot>100;
+  const fill=document.getElementById('rtFill'),txt=document.getElementById('rtTotal'),alrt=document.getElementById('rtAlert');
+  if(fill){fill.style.width=Math.min(tot,100)+'%';fill.style.background=ok?'var(--green)':ov?'var(--red)':'var(--blue)';}
+  if(txt){txt.textContent=tot.toFixed(1)+'%';txt.style.color=ok?'var(--green)':ov?'var(--red)':'var(--muted)';}
+  if(alrt){
+    if(ok){alrt.className='alert hidden';}
+    else if(ov){alrt.className='alert alert-error';alrt.textContent=`合計 ${tot.toFixed(1)}% — 100%を超えています`;}
+    else{alrt.className='alert alert-info';alrt.textContent=`合計 ${tot.toFixed(1)}% — あと ${(100-tot).toFixed(1)}% 残っています`;}
+  }
+  // 各メンバーの取り分プレビュー
+  let totalOps=0;
+  S.members.forEach(m=>{
+    const rev=(m.months[S.year]||{})[S.month]||0; if(!rev) return;
+    const type=getMemberVexType(m.name);
+    totalOps+=Math.round(rev*(type==='own'?0.05:0.25));
+  });
+  const preview=document.getElementById('ops-preview');
+  const previewRows=document.getElementById('ops-preview-rows');
+  if(preview&&previewRows&&totalOps>0){
+    preview.style.display='';
+    previewRows.innerHTML=OPS_TEAM.map((name,i)=>{
+      const col=COLORS[i%COLORS.length];
+      const rat=parseFloat(document.getElementById(`ri-${name}`)?.value||0);
+      const amt=Math.round(totalOps*rat/100);
+      return`<div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="color:${col}">${name}</span>
+        <span style="font-family:var(--mono);color:var(--gold)">¥${fmt(amt)} <span style="color:var(--muted);font-size:10px">(${rat}%)</span></span>
+      </div>`;
+    }).join('');
+  }
+}
+
+function saveRatios(){
+  let tot=0;const d={};
+  OPS_TEAM.forEach(name=>{const v=parseFloat(document.getElementById(`ri-${name}`)?.value||0);d[name]=isNaN(v)?0:v;tot+=d[name];});
+  if(Math.abs(tot-100)>0.1){alert(`合計が ${tot.toFixed(1)}% です。100%にしてください`);return;}
+  S.opsDistributions=d;saveLs();renderAll();
+  const al=document.getElementById('rtAlert');
+  if(al){al.className='alert alert-success';al.textContent='✅ 保存しました';}
+  setTimeout(()=>updRatio(),2000);
+}
+
+function equalRatios(){
+  const eq=(100/OPS_TEAM.length).toFixed(1);
+  OPS_TEAM.forEach(name=>{const el=document.getElementById(`ri-${name}`);if(el) el.value=eq;});
+  updRatio();
+}
+
+function renderCurRatio(){
+  // 分配計算タブの「現在の割合設定」を運営チーム情報に
+  const el=document.getElementById('curRatio');
+  if(!el) return;
+  let totalOps=0;
+  S.members.forEach(m=>{
+    const rev=(m.months[S.year]||{})[S.month]||0; if(!rev) return;
+    const type=getMemberVexType(m.name);
+    totalOps+=Math.round(rev*(type==='own'?0.05:0.25));
+  });
+  el.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px">今月の運営取り分: <span style="color:var(--gold);font-family:var(--mono)">¥${fmt(totalOps)}</span></div>`
+    +OPS_TEAM.map((name,i)=>{
+      const col=COLORS[i%COLORS.length],rat=S.opsDistributions[name]||0;
+      const amt=Math.round(totalOps*rat/100);
+      return`<div style="display:flex;align-items:center;gap:9px;margin-bottom:8px">
+        <div style="width:26px;height:26px;border-radius:50%;background:${col}22;color:${col};font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0">${name[0]}</div>
+        <div style="flex:1;font-size:13px">${name}</div>
+        <span class="rb">${rat}%</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--gold)">¥${fmt(amt)}</span>
+      </div>`;
+    }).join('');
+}
+
+function sw(name){
+  const map={dashboard:'ダッシュボード',distribution:'分配計算',clients:'クライアント',
+             vex:'報酬計算',fund:'運用状況',network:'紹介ネットワーク',
+             history:'清算履歴',payment:'支払い管理',vexstatus:'準備状況',settings:'設定'};
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim().includes(map[name]||name)));
+  document.querySelectorAll('.tab-pane').forEach(el=>el.classList.remove('active'));
+  const pane=document.getElementById(`tab-${name}`);
+  if(pane) pane.classList.add('active');
+  if(name==='fund') renderFundTab();
+  if(name==='network') { netLoadRemote().then(arr=>{ if(arr.length) renderNetworkTab(); }); renderNetworkTab(); }
+  if(name==='history') { histLoadRemote().then(arr=>{ if(arr.length) renderHistoryTab(); }); renderHistoryTab(); }
+  if(name==='payment') renderPaymentTab();
+  if(name==='vexstatus') renderVexStatus();
+}
+
+// ================================================================
+// 💳 銀行送金管理タブ
+// ================================================================
+function parseNum(s){return parseFloat((s||'').toString().replace(/[¥,\s円]/g,'').replace(/[^\d.-]/g,''))||0;}
+
+const BANK_RATES={
+  '自己資金':{self:0.30,direct:0.10,indirect:0.05},
+  '資金提供':{self:0.15,direct:0.05,indirect:0.05}
+};
+
+S.bankData=[];
+
+async function loadBankTransfers(){
+  showLoad('銀行送金データを読み込み中...');
+  try{
+    const res=await fetch(GAS_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'getBankTransfers'})
+    });
+    const json=await res.json();
+    if(json.success){
+      S.bankData=json.data||[];
+      const now=new Date().toLocaleString('ja-JP');
+      const lbl=document.getElementById('payment-last-load');
+      if(lbl) lbl.textContent=`最終読込: ${now} (${S.bankData.length}件)`;
+      renderBankTab();
+    } else {
+      alert('読み込みエラー: '+(json.error||'不明'));
+    }
+  }catch(e){
+    alert('通信エラー: '+e.message);
+  }
+  hideLoad();
+}
+
+function renderBankTab(){
+  const search=(document.getElementById('payment-search')?.value||'').toLowerCase();
+  const typeFilter=document.getElementById('bank-filter-type')?.value||'';
+  const statusFilter=document.getElementById('bank-filter-status')?.value||'';
+
+  const filtered=(S.bankData||[]).filter(r=>{
+    if(search&&!(r.name||'').toLowerCase().includes(search)) return false;
+    if(typeFilter&&r.type!==typeFilter) return false;
+    if(statusFilter&&r.status!==statusFilter) return false;
+    return true;
+  });
+
+  // サマリー
+  const own=(S.bankData||[]).filter(r=>r.type==='自己資金');
+  const fund=(S.bankData||[]).filter(r=>r.type==='資金提供');
+  const pending=(S.bankData||[]).filter(r=>r.status==='未送金');
+  const done=(S.bankData||[]).filter(r=>r.status==='送金済み');
+  document.getElementById('pay-count-own').textContent=own.length+'名';
+  document.getElementById('pay-count-fund').textContent=fund.length+'名';
+  document.getElementById('pay-count-pending').textContent=pending.length+'名';
+  document.getElementById('pay-count-done').textContent=done.length+'名';
+  document.getElementById('pay-total').textContent='¥'+fmt((S.bankData||[]).reduce((s,r)=>s+(parseFloat(r.transferAmount)||0),0));
+  document.getElementById('pay-reward-total').textContent='¥'+fmt((S.bankData||[]).reduce((s,r)=>s+(parseFloat(r.rewardAmount)||0),0));
+  document.getElementById('payment-count').textContent=filtered.length+'件';
+
+  const tbody=document.getElementById('payment-tbody');
+  if(!filtered.length){
+    tbody.innerHTML='<tr class="empty"><td colspan="13">データなし</td></tr>';
+  } else {
+    tbody.innerHTML=filtered.map(r=>{
+      const isOwn=r.type==='自己資金';
+      const tc=isOwn?'var(--green)':'var(--blue)';
+      const isDone=r.status==='送金済み';
+      const bankShort=[r.bankName,r.branchName,r.accountType,r.accountNumber].filter(Boolean).join(' / ');
+      return`<tr>
+        <td><span class="rb" style="background:${tc}22;color:${tc};font-size:11px">${r.type||'—'}</span></td>
+        <td style="font-weight:500">${r.name||'—'}</td>
+        <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:normal;line-height:1.5">${bankShort||'—'}<br><span style="color:var(--dim)">${r.accountHolder||''}</span></td>
+        <td class="mn">¥${fmt(parseFloat(r.transferAmount)||0)}</td>
+        <td class="mn" style="color:var(--gold)">¥${fmt(parseFloat(r.rewardAmount)||0)}</td>
+        <td class="mn" style="color:#b49dff;font-size:12px">¥${fmt(parseFloat(r.selfReward)||0)}</td>
+        <td class="mn" style="color:var(--green);font-size:12px">¥${fmt(parseFloat(r.directReward)||0)}</td>
+        <td class="mn" style="color:var(--gold);font-size:12px">¥${fmt(parseFloat(r.indirectReward)||0)}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.transferDate||'—'}</td>
+        <td style="font-size:12px">${r.referrer||'—'}</td>
+        <td><span class="rb" style="background:${isDone?'rgba(52,199,138,.15)':'rgba(232,168,74,.15)'};color:${isDone?'var(--green)':'var(--gold)'};font-size:11px">${r.status||'—'}</span></td>
+        <td style="font-size:11px;color:var(--muted);max-width:120px">${r.note||'—'}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-secondary btn-sm" onclick="editBankEntry(${r.rowIndex})" style="font-size:11px;padding:4px 8px">✏️</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // 紹介者別サマリー
+  const refMap={};
+  (S.bankData||[]).forEach(r=>{
+    if(!r.referrer) return;
+    if(!refMap[r.referrer]) refMap[r.referrer]={count:0,direct:0,indirect:0};
+    refMap[r.referrer].count++;
+    refMap[r.referrer].direct+=parseFloat(r.directReward)||0;
+    refMap[r.referrer].indirect+=parseFloat(r.indirectReward)||0;
+  });
+  const refTbody=document.getElementById('ref-summary-tbody');
+  const entries=Object.entries(refMap);
+  if(!entries.length){
+    refTbody.innerHTML='<tr class="empty"><td colspan="5">データなし</td></tr>';
+  } else {
+    refTbody.innerHTML=entries.map(([name,d],i)=>{
+      const col=COLORS[i%COLORS.length];
+      return`<tr>
+        <td><div class="mc"><div class="av" style="background:${col}22;color:${col};width:26px;height:26px;font-size:11px">${name[0]}</div>${name}</div></td>
+        <td class="mn">${d.count}名</td>
+        <td class="mn" style="color:var(--green)">¥${fmt(d.direct)}</td>
+        <td class="mn" style="color:var(--gold)">¥${fmt(d.indirect)}</td>
+        <td class="mn gd">¥${fmt(d.direct+d.indirect)}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+function updateBankRates(){
+  const type=document.getElementById('bank-type')?.value||'資金提供';
+  const reward=parseFloat(document.getElementById('bank-reward-amount')?.value)||0;
+  const r=BANK_RATES[type]||BANK_RATES['資金提供'];
+  document.getElementById('bank-rate-self').textContent=(r.self*100)+'%';
+  document.getElementById('bank-rate-direct').textContent=(r.direct*100)+'%';
+  document.getElementById('bank-rate-indirect').textContent=(r.indirect*100)+'%';
+  document.getElementById('bank-calc-self').textContent='¥'+fmt(Math.round(reward*r.self));
+  document.getElementById('bank-calc-direct').textContent='¥'+fmt(Math.round(reward*r.direct));
+  document.getElementById('bank-calc-indirect').textContent='¥'+fmt(Math.round(reward*r.indirect));
+}
+
+function openBankForm(){
+  document.getElementById('bank-modal-title').textContent='➕ 新規追加';
+  document.getElementById('bank-row-index').value='';
+  document.getElementById('bank-name').value='';
+  document.getElementById('bank-type').value='資金提供';
+  document.getElementById('bank-status').value='未送金';
+  document.getElementById('bank-bankname').value='';
+  document.getElementById('bank-branch').value='';
+  document.getElementById('bank-account-type').value='普通';
+  document.getElementById('bank-account-number').value='';
+  document.getElementById('bank-holder').value='';
+  document.getElementById('bank-transfer-amount').value='';
+  document.getElementById('bank-reward-amount').value='';
+  document.getElementById('bank-date').value='';
+  document.getElementById('bank-referrer').value='';
+  document.getElementById('bank-note').value='';
+  document.getElementById('bank-delete-btn').style.display='none';
+  document.getElementById('bank-form-msg').textContent='';
+  updateBankRates();
+  document.getElementById('bank-modal').classList.remove('hidden');
+  document.getElementById('bank-modal').style.display='flex';
+}
+
+function editBankEntry(rowIndex){
+  const r=S.bankData.find(d=>d.rowIndex===rowIndex);
+  if(!r) return;
+  document.getElementById('bank-modal-title').textContent='✏️ 編集';
+  document.getElementById('bank-row-index').value=rowIndex;
+  document.getElementById('bank-name').value=r.name||'';
+  document.getElementById('bank-type').value=r.type||'資金提供';
+  document.getElementById('bank-status').value=r.status||'未送金';
+  document.getElementById('bank-bankname').value=r.bankName||'';
+  document.getElementById('bank-branch').value=r.branchName||'';
+  document.getElementById('bank-account-type').value=r.accountType||'普通';
+  document.getElementById('bank-account-number').value=r.accountNumber||'';
+  document.getElementById('bank-holder').value=r.accountHolder||'';
+  document.getElementById('bank-transfer-amount').value=r.transferAmount||'';
+  document.getElementById('bank-reward-amount').value=r.rewardAmount||'';
+  document.getElementById('bank-date').value=r.transferDate||'';
+  document.getElementById('bank-referrer').value=r.referrer||'';
+  document.getElementById('bank-note').value=r.note||'';
+  document.getElementById('bank-delete-btn').style.display='inline-flex';
+  document.getElementById('bank-form-msg').textContent='';
+  updateBankRates();
+  document.getElementById('bank-modal').classList.remove('hidden');
+  document.getElementById('bank-modal').style.display='flex';
+}
+
+function closeBankForm(){
+  document.getElementById('bank-modal').classList.add('hidden');
+  document.getElementById('bank-modal').style.display='none';
+}
+
+async function saveBankEntry(){
+  const rowIndex=document.getElementById('bank-row-index').value;
+  const payload={
+    name:document.getElementById('bank-name').value.trim(),
+    type:document.getElementById('bank-type').value,
+    status:document.getElementById('bank-status').value,
+    bankName:document.getElementById('bank-bankname').value.trim(),
+    branchName:document.getElementById('bank-branch').value.trim(),
+    accountType:document.getElementById('bank-account-type').value,
+    accountNumber:document.getElementById('bank-account-number').value.trim(),
+    accountHolder:document.getElementById('bank-holder').value.trim(),
+    transferAmount:document.getElementById('bank-transfer-amount').value,
+    rewardAmount:document.getElementById('bank-reward-amount').value,
+    transferDate:document.getElementById('bank-date').value.trim(),
+    referrer:document.getElementById('bank-referrer').value.trim(),
+    note:document.getElementById('bank-note').value.trim(),
+  };
+  if(!payload.name){
+    document.getElementById('bank-form-msg').innerHTML='<span style="color:var(--red)">名前を入力してください</span>';
+    return;
+  }
+  const action=rowIndex?'updateBankTransfer':'saveBankTransfer';
+  if(rowIndex) payload.rowIndex=rowIndex;
+  showLoad('保存中...');
+  try{
+    const res=await fetch(GAS_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,payload})
+    });
+    const json=await res.json();
+    hideLoad();
+    if(json.success){
+      document.getElementById('bank-form-msg').innerHTML='<span style="color:var(--green)">✅ '+json.message+'</span>';
+      setTimeout(()=>{closeBankForm();loadBankTransfers();},800);
+    } else {
+      document.getElementById('bank-form-msg').innerHTML='<span style="color:var(--red)">エラー: '+(json.error||'不明')+'</span>';
+    }
+  }catch(e){
+    hideLoad();
+    document.getElementById('bank-form-msg').innerHTML='<span style="color:var(--red)">通信エラー: '+e.message+'</span>';
+  }
+}
+
+async function deleteBankEntry(){
+  const rowIndex=document.getElementById('bank-row-index').value;
+  if(!rowIndex) return;
+  if(!confirm('このデータを削除しますか？')) return;
+  showLoad('削除中...');
+  try{
+    const res=await fetch(GAS_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'deleteBankTransfer',payload:{rowIndex}})
+    });
+    const json=await res.json();
+    hideLoad();
+    if(json.success){
+      closeBankForm();
+      loadBankTransfers();
+    } else {
+      alert('削除エラー: '+(json.error||'不明'));
+    }
+  }catch(e){
+    hideLoad();
+    alert('通信エラー: '+e.message);
+  }
+}
+
+// ================================================================
+// 📈 運用状況タブ（運営・リスク管理の可視化）
+// ================================================================
+
+let fundChartInst=null, fundCumChartInst=null, simChartInst=null;
+
+// VEX分配率定数（設定タブの自動判定に使用）
+const VEX_RATES_OPS = { own: 0.05, fund: 0.25 };
+const RISK_RATE = 0.50;
+
+// メンバーのVEXタイプをクライアント情報から自動判定
+function getMemberVexType(memberName) {
+  const c = S.clients[memberName];
+  if (!c) return 'fund'; // デフォルト資金提供
+  return (c.group||'').trim() === '自己資金' ? 'own' : 'fund';
+}
+
+// 月次の運営・リスク管理額を計算
+function calcFundByMonth(year, month) {
+  const revs = S.members.map(m => (m.months[year]||{})[month]||0);
+  const grand = revs.reduce((a,b)=>a+b, 0);
+  let risk = 0, ops = 0;
+  S.members.forEach((m,i) => {
+    const rev = revs[i];
+    if(!rev) return;
+    const type = getMemberVexType(m.name);
+    risk += Math.round(rev * RISK_RATE);
+    ops  += Math.round(rev * VEX_RATES_OPS[type]);
+  });
+  return { grand, risk, ops };
+}
+
+function renderFundTab() {
+  const years = (() => { const s=new Set(); S.members.forEach(m=>Object.keys(m.months).forEach(y=>s.add(parseInt(y)))); return [...s].sort(); })();
+  if (!years.length) return;
+
+  // 年ピル
+  const yr = S.fundYear || years[years.length-1];
+  S.fundYear = yr;
+  document.getElementById('fund-yr-pills').innerHTML = years.map(y =>
+    `<button class="pill yr${y===yr?' active':''}" onclick="S.fundYear=${y};renderFundTab()">${y}年</button>`
+  ).join('');
+  document.getElementById('fund-chart-lbl').textContent = `${yr}年`;
+  document.getElementById('fund-month-lbl').textContent  = `${yr}年`;
+  document.getElementById('fund-month-lbl2').textContent = `${yr}年`;
+
+  // 月次データ収集
+  const monthData = [];
+  let cumRisk=0, cumOps=0;
+  for(let mo=1; mo<=12; mo++){
+    const d = calcFundByMonth(yr, mo);
+    cumRisk += d.risk; cumOps += d.ops;
+    monthData.push({mo, ...d, cumRisk, cumOps});
+  }
+
+  // 全期間累計（全年）
+  let totalRisk=0, totalOps=0;
+  years.forEach(y => {
+    for(let mo=1;mo<=12;mo++){
+      const d = calcFundByMonth(y, mo);
+      totalRisk += d.risk; totalOps += d.ops;
+    }
+  });
+
+  // サマリーカード
+  document.getElementById('fund-risk-total').textContent = '¥'+fmt(totalRisk);
+  document.getElementById('fund-ops-total').textContent  = '¥'+fmt(totalOps);
+  // 当月（S.month）
+  const mthD = calcFundByMonth(yr, S.month);
+  document.getElementById('fund-risk-month').textContent = '¥'+fmt(mthD.risk);
+  document.getElementById('fund-ops-month').textContent  = '¥'+fmt(mthD.ops);
+
+  // 月次推移グラフ
+  const labels = monthData.map(d => MN[d.mo-1]);
+  const riskData = monthData.map(d => d.risk);
+  const opsData  = monthData.map(d => d.ops);
+  const ctx1 = document.getElementById('fundChart').getContext('2d');
+  if(fundChartInst) fundChartInst.destroy();
+  fundChartInst = new Chart(ctx1, {type:'bar', data:{labels, datasets:[
+    {label:'リスク管理(50%)', data:riskData, backgroundColor:'rgba(52,199,138,.2)', borderColor:'#34c78a', borderWidth:2, borderRadius:4, borderSkipped:false},
+    {label:'運営', data:opsData, backgroundColor:'rgba(232,168,74,.2)', borderColor:'#e8a84a', borderWidth:2, borderRadius:4, borderSkipped:false},
+  ]}, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#8494aa',font:{size:11}}}, tooltip:{callbacks:{label:c=>`${c.dataset.label}: ¥${fmt(c.raw)}`}}},
+    scales:{x:{ticks:{color:'#596880'},grid:{color:'rgba(255,255,255,.03)'}}, y:{ticks:{color:'#596880',callback:v=>'¥'+fmtS(v)},grid:{color:'rgba(255,255,255,.03)'}}}}});
+
+  // 累積グラフ
+  const ctx2 = document.getElementById('fundCumChart').getContext('2d');
+  if(fundCumChartInst) fundCumChartInst.destroy();
+  fundCumChartInst = new Chart(ctx2, {type:'line', data:{labels, datasets:[
+    {label:'リスク管理 累積', data:monthData.map(d=>d.cumRisk), borderColor:'#34c78a', backgroundColor:'rgba(52,199,138,.08)', fill:true, tension:.4, pointRadius:3},
+    {label:'運営 累積', data:monthData.map(d=>d.cumOps), borderColor:'#e8a84a', backgroundColor:'rgba(232,168,74,.08)', fill:true, tension:.4, pointRadius:3},
+  ]}, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#8494aa',font:{size:11}}}, tooltip:{callbacks:{label:c=>`${c.dataset.label}: ¥${fmt(c.raw)}`}}},
+    scales:{x:{ticks:{color:'#596880'},grid:{color:'rgba(255,255,255,.03)'}}, y:{ticks:{color:'#596880',callback:v=>'¥'+fmtS(v)},grid:{color:'rgba(255,255,255,.03)'}}}}});
+
+  // 月次明細テーブル
+  document.getElementById('fund-tbody').innerHTML = monthData.map(d => `
+    <tr style="${d.mo===S.month?'background:rgba(74,140,255,.05)':''}">
+      <td style="font-weight:${d.mo===S.month?600:400}">${MN[d.mo-1]}${d.mo===S.month?' ◀':''}</td>
+      <td class="mn">¥${fmt(d.grand)}</td>
+      <td class="mn" style="color:var(--green)">¥${fmt(d.risk)}</td>
+      <td class="mn" style="color:var(--gold)">¥${fmt(d.ops)}</td>
+      <td class="mn" style="color:rgba(52,199,138,.7)">¥${fmt(d.cumRisk)}</td>
+      <td class="mn" style="color:rgba(232,168,74,.7)">¥${fmt(d.cumOps)}</td>
+    </tr>`).join('');
+
+  runSim();
+}
+
+// 複利シミュレーション
+function runSim() {
+  const principal = parseFloat(document.getElementById('sim-principal')?.value)||0;
+  const monthly   = parseFloat(document.getElementById('sim-monthly')?.value)||0;
+  const rate      = (parseFloat(document.getElementById('sim-rate')?.value)||0)/100;
+  const months    = parseInt(document.getElementById('sim-months')?.value)||24;
+
+  let balance = principal;
+  const data = [];
+  for(let i=1;i<=months;i++){
+    balance = balance*(1+rate) + monthly;
+    data.push(Math.round(balance));
+  }
+  const labels = Array.from({length:months},(_,i)=>`${i+1}ヶ月`);
+  const ctx = document.getElementById('simChart')?.getContext('2d');
+  if(!ctx) return;
+  if(simChartInst) simChartInst.destroy();
+  simChartInst = new Chart(ctx, {type:'line', data:{labels, datasets:[
+    {label:'複利運用残高', data, borderColor:'#4a8cff', backgroundColor:'rgba(74,140,255,.1)', fill:true, tension:.4, pointRadius:0}
+  ]}, options:{responsive:true, maintainAspectRatio:false,
+    plugins:{legend:{labels:{color:'#8494aa',font:{size:11}}}, tooltip:{callbacks:{label:c=>`¥${fmt(c.raw)}`}}},
+    scales:{x:{ticks:{color:'#596880',maxTicksLimit:12},grid:{color:'rgba(255,255,255,.03)'}}, y:{ticks:{color:'#596880',callback:v=>'¥'+fmtS(v)},grid:{color:'rgba(255,255,255,.03)'}}}}});
+
+  const totalInvested = principal + monthly*months;
+  const finalBal = data[data.length-1]||0;
+  const gain = finalBal - totalInvested;
+  document.getElementById('sim-result').innerHTML = `
+    <div class="stat-card"><div class="stat-lbl">最終残高</div><div class="stat-val" style="color:var(--blue)">¥${fmt(finalBal)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">投資合計</div><div class="stat-val">¥${fmt(totalInvested)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">運用益</div><div class="stat-val" style="color:var(--green)">¥${fmt(gain)}</div><div class="stat-sub">${totalInvested>0?'+'+(gain/totalInvested*100).toFixed(1)+'%':''}</div></div>`;
+}
+
+// ================================================================
+// ③ 3ヶ月清算 最適化（実データで3ヶ月合算）
+// ================================================================
+
+// 清算対象の四半期を特定する
+// 3月末締め→1,2,3月  6月末締め→4,5,6月  9月末締め→7,8,9月  12月末締め→10,11,12月
+function getQuarterMonths(settlMonth, settlYear) {
+  const ranges = {3:[1,2,3], 6:[4,5,6], 9:[7,8,9], 12:[10,11,12]};
+  const months = ranges[settlMonth]||[];
+  return months.map(mo => ({year: settlYear, month: mo}));
+}
+
+// 3ヶ月分の実データで報酬計算
+function calc3MonthSettlement(memberName, settlMonth, settlYear) {
+  const member = S.members.find(m=>m.name===memberName);
+  if(!member) return null;
+  const qMonths = getQuarterMonths(settlMonth, settlYear);
+  const type = getMemberVexType(memberName);
+  const rates = VEX_RATES[type];
+
+  let totalProfit=0, totalUser=0, totalRef1=0, totalRef2=0, totalOps=0, totalRisk=0;
+  const monthly = qMonths.map(({year,month}) => {
+    const profit = (member.months[year]||{})[month]||0;
+    const r = calcVex(profit, type);
+    totalProfit+=profit; totalUser+=r.user; totalRef1+=r.refDirect;
+    totalRef2+=r.refIndirect; totalOps+=r.ops; totalRisk+=r.risk;
+    return {year, month, profit, ...r};
+  });
+
+  return { type, rates, qMonths, monthly, totalProfit, totalUser, totalRef1, totalRef2, totalOps, totalRisk };
+}
+
+// 清算スケジュール描画（3ヶ月実データ版）
+function renderSettlement() {
+  const tbody = document.getElementById('settlement-tbody');
+  if(!tbody) return;
+  const mo  = parseInt(document.getElementById('settlement-month')?.value||'3');
+  const yr  = parseInt(document.getElementById('settlement-year')?.value||new Date().getFullYear());
+
+  if(!vexRows.length && !S.members.length) {
+    tbody.innerHTML='<tr class="empty"><td colspan="7">データを読み込んでください</td></tr>'; return;
+  }
+
+  // VEX一括計算のデータ or メンバーデータを使用
+  const targets = vexRows.length ? vexRows : S.members.map(m=>({name:m.name, startYM:'', type:getMemberVexType(m.name)}));
+
+  tbody.innerHTML = targets.map(row => {
+    const name = row.name||'—';
+    const targetYM = `${yr}-${String(mo).padStart(2,'0')}`;
+    const settledLabel = row.startYM ? getSettlementLabel(row.startYM, targetYM) : null;
+    const isTarget = settledLabel === `${yr}年${mo}月`;
+    const d = calc3MonthSettlement(name, mo, yr);
+    const tc = (row.type||getMemberVexType(name))==='own' ? 'var(--blue)' : 'var(--gold)';
+    const typeLbl = (row.type||getMemberVexType(name))==='own' ? '自己資金' : '資金提供';
+    // 支払い日（翌月10日前後）
+    const payMonth = mo === 12 ? 1 : mo + 1;
+    const payYear  = mo === 12 ? yr + 1 : yr;
+    const payLabel = `${payYear}年${payMonth}月10日前後`;
+
+    return `<tr style="${isTarget?'background:rgba(52,199,138,.04)':''}">
+      <td><div class="mc"><div class="av" style="background:${tc}22;color:${tc};width:26px;height:26px;border-radius:50%;font-size:11px">${name[0]||'?'}</div>${name}</div></td>
+      <td style="color:${tc};font-size:12px">${typeLbl}</td>
+      <td style="font-family:var(--mono);font-size:11px;color:var(--muted)">${row.startYM||'—'}</td>
+      <td style="font-size:12px">${isTarget
+        ? `<span style="color:var(--green);font-weight:600">✅ 清算対象<br><span style="font-size:10px;font-weight:400">支払：${payLabel}</span></span>`
+        : settledLabel
+          ? `<span style="color:var(--muted)">⏭ ${settledLabel}へ繰越</span>`
+          : '<span style="color:var(--muted)">—</span>'
+      }</td>
+      <td class="mn" style="font-size:12px">${d?'¥'+fmt(d.totalProfit):'—'}</td>
+      <td class="mn" style="color:${tc};font-size:13px;font-weight:600">${d?'¥'+fmt(d.totalUser):'—'}</td>
+      <td style="font-size:11px;color:var(--muted)">${d?d.qMonths.map(q=>`${q.year}/${q.month}月`).join('・'):'—'}</td>
+    </tr>`;
+  }).join('');
+}
+// 自己資金: ユーザー30% 直紹介10% 間接紹介5% 運営5% リスク管理50%
+// 資金提供: ユーザー15% 直紹介5%  間接紹介5% 運営25% リスク管理50%
+// ================================================================
+
+const VEX_RATES = {
+  own:  { user:0.30, ref1:0.10, ref2:0.05, ops:0.05, risk:0.50 },
+  fund: { user:0.15, ref1:0.05, ref2:0.05, ops:0.25, risk:0.50 }
+};
+
+function calcVex(profit, type) {
+  const r = VEX_RATES[type] || VEX_RATES.own;
+  const user     = Math.round(profit * r.user);
+  const refDirect  = Math.round(profit * r.ref1);
+  const refIndirect= Math.round(profit * r.ref2);
+  const ops      = Math.round(profit * r.ops);
+  const risk     = Math.round(profit * r.risk);
+  return { user, refDirect, refIndirect, ops, risk, rates: r };
+}
+
+// 清算月の判定：締め月末時点で開始月含め2ヶ月以上運用していれば清算対象
+// 3月末締め→4月10日払 / 6月末締め→7月払 / 9月末締め→10月払 / 12月末締め→翌1月払
+function getSettlementMonth(startYM, targetYM) {
+  // startYM: 運用開始月 "2026-01"
+  // targetYM: チェックする締め月 "2026-03"（3月末締めなら"2026-03"）
+  const [sy, sm] = startYM.split('-').map(Number);
+  const [ty, tm] = targetYM.split('-').map(Number);
+  const startTot = sy * 12 + sm;
+  const targetTot = ty * 12 + tm;
+  // 開始月を含めて2ヶ月以上 = targetTot - startTot >= 1
+  if (targetTot - startTot < 1) return null;
+  for (let yr = sy; yr <= ty + 1; yr++) {
+    for (const mo of [3, 6, 9, 12]) {
+      const tot = yr * 12 + mo;
+      if (tot < startTot + 1) continue; // 開始月含め2ヶ月未満はスキップ
+      if (tot > targetTot) return null;
+      const payMonth = mo === 12 ? 1 : mo + 1;
+      const payYear  = mo === 12 ? yr + 1 : yr;
+      return `${yr}年${mo}月末締め（${payYear}年${payMonth}月10日払い）`;
+    }
+  }
+  return null;
+}
+
+// 表示用のシンプルな清算月ラベル
+function getSettlementLabel(startYM, targetYM) {
+  const [sy, sm] = startYM.split('-').map(Number);
+  const [ty, tm] = targetYM.split('-').map(Number);
+  const startTot = sy * 12 + sm;
+  const targetTot = ty * 12 + tm;
+  if (targetTot - startTot < 1) return null;
+  for (let yr = sy; yr <= ty + 1; yr++) {
+    for (const mo of [3, 6, 9, 12]) {
+      const tot = yr * 12 + mo;
+      if (tot < startTot + 1) continue;
+      if (tot > targetTot) return null;
+      return `${yr}年${mo}月`;
+    }
+  }
+  return null;
+}
+
+// VEXタブ内サブタブ切替
+// ① 単独計算
+function vexCalc() {
+  const type = document.querySelector('input[name="vex-type"]:checked')?.value;
+  const profit = parseFloat(document.getElementById('vex-profit')?.value) || 0;
+  const ref1name = document.getElementById('vex-ref1')?.value.trim() || '';
+  const ref2name = document.getElementById('vex-ref2')?.value.trim() || '';
+  const startYM  = document.getElementById('vex-start')?.value || '';
+
+  const ownEl  = document.getElementById('lbl-own');
+  const fundEl = document.getElementById('lbl-fund');
+  if (ownEl)  ownEl.style.borderColor  = type === 'own'  ? 'var(--blue)' : 'var(--border)';
+  if (fundEl) fundEl.style.borderColor = type === 'fund' ? 'var(--gold)' : 'var(--border)';
+
+  const resultEl = document.getElementById('vex-result-body');
+  if (!type || !profit) {
+    resultEl.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:24px 0">資金タイプと利益を入力してください</div>';
+    return;
+  }
+
+  const r = calcVex(profit, type);
+  const isOwn = type === 'own';
+  const ac = isOwn ? 'var(--blue)' : 'var(--gold)';
+  const typeBadge = isOwn
+    ? '<span class="rb">自己資金</span>'
+    : '<span class="rb" style="background:var(--gold-dim);color:var(--gold)">資金提供</span>';
+
+  const row = (label, val, pct, color, sub='') => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);background:${color}08">
+      <div>
+        <span style="font-size:13px;color:var(--dim)">${label}</span>
+        ${sub ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">${sub}</span>` : ''}
+      </div>
+      <div style="text-align:right">
+        <span style="font-family:var(--mono);font-weight:600;font-size:14px;color:${color}">¥${fmt(val)}</span>
+        <span style="font-size:10px;color:var(--muted);margin-left:6px">(${pct}%)</span>
+      </div>
+    </div>`;
+
+  // 清算情報（現在時点で最初に該当する締め月を探す）
+  const now = new Date();
+  // 直近4つの締め月（3/6/9/12）をチェック
+  const settlInfo = startYM
+    ? (() => {
+        // 現在月以降の締め月を順番に確認
+        const nowY = now.getFullYear(), nowM = now.getMonth()+1;
+        for (const mo of [3,6,9,12]) {
+          const yr = mo < nowM ? nowY+1 : nowY;
+          const targetYM = `${yr}-${String(mo).padStart(2,'0')}`;
+          const label = getSettlementLabel(startYM, targetYM);
+          if (label) {
+            const payM = mo===12?1:mo+1, payY = mo===12?yr+1:yr;
+            return `<div class="alert alert-success" style="margin-top:12px;font-size:12px">
+              ✅ 次回清算: <strong>${label}末締め</strong><br>
+              💳 支払予定: <strong>${payY}年${payM}月10日前後</strong>
+            </div>`;
+          }
+        }
+        return `<div class="alert alert-info" style="margin-top:12px;font-size:12px">⏭ 運用2ヶ月未満 → 次の清算月（締め月）に繰り越し</div>`;
+      })()
+    : '';
+
+  const rates = r.rates;
+  resultEl.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:0 14px 14px;border-bottom:2px solid var(--border2)">
+      <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">月次利益</div><div style="font-family:var(--mono);font-size:22px;font-weight:700">¥${fmt(profit)}</div></div>
+      <div style="text-align:right">${typeBadge}</div>
+    </div>
+    <div style="margin-top:4px">
+      ${row('ユーザー手取り', r.user, Math.round(rates.user*100), ac)}
+      ${row('直紹介者報酬', r.refDirect, Math.round(rates.ref1*100), '#a5c4ff', ref1name ? `→ ${ref1name}` : '')}
+      ${row('間接紹介者報酬', r.refIndirect, Math.round(rates.ref2*100), '#a5c4ff', ref2name ? `→ ${ref2name}` : '')}
+      ${row('運営（複利運用）', r.ops, Math.round(rates.ops*100), 'var(--gold)')}
+      ${row('リスク管理（複利運用）', r.risk, Math.round(rates.risk*100), 'var(--green)')}
+    </div>
+    <div style="padding:10px 14px;background:rgba(255,255,255,.03);display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
+      <span>合計</span><span style="font-family:var(--mono)">¥${fmt(r.user+r.refDirect+r.refIndirect+r.ops+r.risk)}</span>
+    </div>
+    ${settlInfo}`;
+}
+
+// ② 一括計算
+let vexRows = [];
+
+function vexSwitchTab(name) {
+  ['single','batch','schedule','rule'].forEach(n => {
+    const p = document.getElementById(`vex-pane-${n}`);
+    const b = document.getElementById(`vex-tab-${n}`);
+    if(p) p.style.display = n===name ? '' : 'none';
+    if(b) b.classList.toggle('active', n===name);
+  });
+  if (name === 'schedule') renderSettlement();
+}
+
+function vexLoadFromClients() {
+  // クライアント情報からVEX用のデータを生成
+  const entries = Object.entries(S.clients||{});
+  if (!entries.length) { alert('先にクライアント情報を接続・読込してください'); return; }
+  vexRows = entries.map(([name, c]) => ({
+    id: Date.now() + Math.random(),
+    name,
+    type: (c.group||'').trim() === '自己資金' ? 'own' : 'fund',
+    profit: 0,
+    ref1: '',
+    ref2: '',
+    startYM: ''
+  }));
+  renderVexBatch();
+  const bm = document.getElementById('vex-batch-month');
+  if (bm && !bm.value) {
+    const now = new Date();
+    bm.value = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  }
+}
+
+function vexAddRow() {
+  vexRows.push({ id: Date.now(), name:'', type:'own', profit:0, ref1:'', ref2:'', startYM:'' });
+  renderVexBatch();
+}
+
+function vexDeleteRow(id) {
+  vexRows = vexRows.filter(r => r.id !== id);
+  renderVexBatch();
+}
+
+function vexUpdateRow(id, field, value) {
+  const row = vexRows.find(r => r.id === id);
+  if (!row) return;
+  row[field] = field === 'profit' ? (parseFloat(value)||0) : value;
+  renderVexBatch();
+}
+
+function renderVexBatch() {
+  const tbody = document.getElementById('vex-batch-tbody');
+  const countEl = document.getElementById('vex-batch-count');
+  if (!tbody) return;
+
+  if (!vexRows.length) {
+    tbody.innerHTML = '<tr class="empty"><td colspan="12">「クライアント情報から読込」または「手動追加」でデータを追加してください</td></tr>';
+    ['vex-total-user','vex-total-ref1','vex-total-ref2','vex-total-ops','vex-total-risk'].forEach(id => {
+      const el = document.getElementById(id); if(el) el.textContent = '¥0';
+    });
+    if(countEl) countEl.textContent = '0名';
+    return;
+  }
+
+  const batchMonth = document.getElementById('vex-batch-month')?.value || '';
+  let totUser=0, totRef1=0, totRef2=0, totOps=0, totRisk=0;
+
+  tbody.innerHTML = vexRows.map(row => {
+    const r = row.profit > 0 ? calcVex(row.profit, row.type) : null;
+    if (r) { totUser+=r.user; totRef1+=r.refDirect; totRef2+=r.refIndirect; totOps+=r.ops; totRisk+=r.risk; }
+    const isOwn = row.type === 'own';
+    const tc = isOwn ? 'var(--blue)' : 'var(--gold)';
+    const typeLbl = isOwn ? '自己資金' : '資金提供';
+
+    // 清算判定（締め月基準）
+    let settlCell = '<td style="color:var(--muted);font-size:11px">—</td>';
+    if (row.startYM && batchMonth) {
+      const [ty, tm] = batchMonth.split('-').map(Number);
+      const label = getSettlementLabel(row.startYM, batchMonth);
+      if (label) {
+        const mo = parseInt(label.match(/(\d+)月/)[1]);
+        const yr = parseInt(label.match(/(\d+)年/)[1]);
+        const payM = mo===12?1:mo+1, payY = mo===12?yr+1:yr;
+        settlCell = `<td style="color:var(--green);font-size:11px">✅ ${label}末<br><span style="color:var(--muted)">${payY}/${payM}月払</span></td>`;
+      } else {
+        settlCell = `<td style="color:var(--muted);font-size:11px">⏭ 繰越</td>`;
+      }
+    }
+
+    return `<tr>
+      <td><input value="${row.name}" oninput="vexUpdateRow(${row.id},'name',this.value)" class="inp" style="padding:5px 8px;font-size:12px;width:90px" placeholder="名前"/></td>
+      <td>
+        <select onchange="vexUpdateRow(${row.id},'type',this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:${tc};font-size:11px;padding:5px 7px;outline:none">
+          <option value="own" ${isOwn?'selected':''}>自己資金</option>
+          <option value="fund" ${!isOwn?'selected':''}>資金提供</option>
+        </select>
+      </td>
+      <td><input type="number" value="${row.profit||''}" oninput="vexUpdateRow(${row.id},'profit',this.value)" class="inp" style="padding:5px 8px;font-size:12px;width:100px;font-family:var(--mono)" placeholder="0"/></td>
+      <td class="mn" style="color:${tc};font-size:12px">${r ? '¥'+fmt(r.user) : '—'}</td>
+      <td><input value="${row.ref1}" oninput="vexUpdateRow(${row.id},'ref1',this.value)" class="inp" style="padding:5px 8px;font-size:12px;width:80px" placeholder="直紹介"/></td>
+      <td class="mn" style="color:#a5c4ff;font-size:12px">${r ? '¥'+fmt(r.refDirect) : '—'}</td>
+      <td><input value="${row.ref2}" oninput="vexUpdateRow(${row.id},'ref2',this.value)" class="inp" style="padding:5px 8px;font-size:12px;width:80px" placeholder="間接紹介"/></td>
+      <td class="mn" style="color:#a5c4ff;font-size:12px">${r ? '¥'+fmt(r.refIndirect) : '—'}</td>
+      <td class="mn" style="color:var(--gold);font-size:12px">${r ? '¥'+fmt(r.ops) : '—'}</td>
+      <td class="mn" style="color:var(--green);font-size:12px">${r ? '¥'+fmt(r.risk) : '—'}</td>
+      ${settlCell}
+      <td><button onclick="vexDeleteRow(${row.id})" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  const ids = ['vex-total-user','vex-total-ref1','vex-total-ref2','vex-total-ops','vex-total-risk'];
+  const vals = [totUser, totRef1, totRef2, totOps, totRisk];
+  ids.forEach((id,i) => { const el=document.getElementById(id); if(el) el.textContent='¥'+fmt(vals[i]); });
+  if(countEl) countEl.textContent = vexRows.length + '名';
+}
+
+// ③ 清算スケジュール
+// ================================================================
+// 📋 VEX準備状況タブ
+// ================================================================
+function parseVexStatus(values) {
+  // 行3がヘッダー（index2）、行4以降がデータ（index3〜）
+  if (!values || values.length < 4) return [];
+  const rows = [];
+  for (let i = 3; i < values.length; i++) {
+    const row = values[i] || [];
+    const name = (row[1] || '').toString().trim();
+    if (!name) continue;
+    const parseCheck = (v) => {
+      const s = (v || '').toString().trim().toUpperCase();
+      return s === 'TRUE' || s === '1' || s === '✓' || s === '✔';
+    };
+    rows.push({
+      no:     (row[0] || '').toString().trim(),
+      name,
+      ref:    (row[2] || '').toString().trim(),
+      charge: (row[3] || '').toString().trim(),
+      type:   (row[4] || '').toString().trim(),
+      steps:  [row[5],row[6],row[7],row[8],row[9],row[10]].map(parseCheck),
+      note:   (row[12] || '').toString().trim(),
+    });
+  }
+  return rows;
+}
+
+async function loadVexStatus() {
+  showLoad('VEX準備状況を読み込み中...');
+  try {
+    const vals = await sheetsAPI(VEX_STATUS_ID, `${VEX_STATUS_SHEET}!A1:M60`);
+    S.vexStatusData = parseVexStatus(vals);
+    hideLoad();
+    const now = new Date().toLocaleString('ja-JP');
+    const lbl = document.getElementById('vexstatus-last-load');
+    if (lbl) lbl.textContent = `最終読込: ${now}`;
+    // 担当者フィルター更新
+    const charges = [...new Set(S.vexStatusData.map(r=>r.charge).filter(Boolean))].sort();
+    const sel = document.getElementById('vexstatus-filter-charge');
+    if (sel) {
+      sel.innerHTML = '<option value="">全担当者</option>' +
+        charges.map(c=>`<option value="${c}">${c}</option>`).join('');
+    }
+    renderVexStatus();
+  } catch(e) {
+    hideLoad();
+    alert('VEX準備状況の読み込みエラー: ' + e.message);
+  }
+}
+
+function getRowBg(done) {
+  if (done === 6) return { bg:'#F1F8F1', fc:'#2E7D32' };
+  if (done >= 4)  return { bg:'#FFF8F0', fc:'#BF360C' };
+  if (done >= 1)  return { bg:'#FFFEF0', fc:'#F57F17' };
+  return { bg:'#FFFFFF', fc:'#9E9E9E' };
+}
+
+function renderVexStatus() {
+  const search  = (document.getElementById('vexstatus-search')?.value || '').toLowerCase();
+  const fType   = document.getElementById('vexstatus-filter-type')?.value || '';
+  const fCharge = document.getElementById('vexstatus-filter-charge')?.value || '';
+
+  const data = S.vexStatusData.filter(r => {
+    if (fType   && r.type   !== fType)   return false;
+    if (fCharge && r.charge !== fCharge) return false;
+    if (search  && !r.name.includes(search) && !r.charge.includes(search) && !r.ref.includes(search)) return false;
+    return true;
+  });
+
+  // サマリー
+  const total  = data.length;
+  const done6  = data.filter(r => r.steps.filter(Boolean).length === 6).length;
+  const wip    = data.filter(r => { const d=r.steps.filter(Boolean).length; return d>=1&&d<6; }).length;
+  const zero   = data.filter(r => r.steps.filter(Boolean).length === 0).length;
+  document.getElementById('vs-total').textContent = total + '名';
+  document.getElementById('vs-done').textContent  = done6 + '名';
+  document.getElementById('vs-wip').textContent   = wip   + '名';
+  document.getElementById('vs-zero').textContent  = zero  + '名';
+
+  // 進捗バー（ステップ別完了率）
+  const stepNames = ['①口座開設','②LINE登録','③PC発送依頼','④PC設置確認','⑤資金準備','⑥初回入金反映'];
+  const pbEl = document.getElementById('vs-progress-bars');
+  if (pbEl && total > 0) {
+    pbEl.innerHTML = stepNames.map((name, si) => {
+      const cnt = data.filter(r => r.steps[si]).length;
+      const pct = Math.round(cnt / total * 100);
+      const col = pct === 100 ? 'var(--green)' : pct >= 60 ? 'var(--gold)' : 'var(--blue)';
+      return `<div style="display:flex;align-items:center;gap:10px">
+        <div style="width:130px;font-size:12px;color:var(--dim);flex-shrink:0">${name}</div>
+        <div style="flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden">
+          <div style="width:${pct}%;height:100%;background:${col};border-radius:4px;transition:width .3s"></div>
+        </div>
+        <div style="font-size:12px;font-family:var(--mono);color:${col};width:52px;text-align:right">${cnt}/${total}名</div>
+      </div>`;
+    }).join('');
+  }
+
+  // テーブル
+  document.getElementById('vexstatus-count').textContent = data.length + '件';
+  const tbody = document.getElementById('vexstatus-tbody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr class="empty"><td colspan="13">データなし</td></tr>';
+    return;
+  }
+
+  const STEP_LABELS = ['①','②','③','④','⑤','⑥'];
+  tbody.innerHTML = data.map(r => {
+    const done = r.steps.filter(Boolean).length;
+    const { bg, fc } = getRowBg(done);
+    const isOwn = r.type === '自己資金';
+    const typeColor = isOwn ? 'var(--blue)' : 'var(--gold)';
+    const progColor = done===6 ? '#2E7D32' : done>=4 ? '#BF360C' : done>=1 ? '#F57F17' : '#9E9E9E';
+
+    const stepCells = r.steps.map((v, si) => {
+      const icon = v
+        ? `<span style="color:#2E7D32;font-size:14px;font-weight:700">✓</span>`
+        : `<span style="color:#ccc;font-size:12px">—</span>`;
+      return `<td style="background:${bg};text-align:center">${icon}</td>`;
+    }).join('');
+
+    return `<tr>
+      <td style="background:${bg};color:var(--muted);font-size:12px;text-align:center">${r.no}</td>
+      <td style="background:${bg}"><div class="mc"><div class="av" style="background:${bg};color:${fc};width:26px;height:26px;border-radius:50%;font-size:11px;font-weight:700;border:1px solid ${fc}55">${r.name[0]||'?'}</div><span style="color:${fc};font-weight:600">${r.name}</span></div></td>
+      <td style="background:${bg};font-size:12px;color:var(--muted)">${r.ref||'—'}</td>
+      <td style="background:${bg};font-size:12px;color:var(--muted)">${r.charge||'—'}</td>
+      <td style="background:${bg};text-align:center"><span style="font-size:11px;font-weight:600;color:${typeColor}">${r.type||'—'}</span></td>
+      ${stepCells}
+      <td style="background:${bg};text-align:center"><span style="font-family:var(--mono);font-weight:700;font-size:13px;color:${progColor}">${done}/6</span></td>
+      <td style="background:${bg};font-size:11px;color:var(--muted)">${r.note||'—'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function fmt(n){return Number(n||0).toLocaleString('ja-JP')}
+function fmtS(n){n=Number(n||0);if(Math.abs(n)>=100000000) return(n/100000000).toFixed(1)+'億';if(Math.abs(n)>=10000) return(n/10000).toFixed(0)+'万';return n.toLocaleString('ja-JP')}
+function showLoad(m='読み込み中...'){document.getElementById('lmsg').textContent=m;document.getElementById('loading').classList.remove('hidden')}
+function hideLoad(){document.getElementById('loading').classList.add('hidden')}
+function showErr(m){const e=document.getElementById('serr');e.textContent=m;e.classList.remove('hidden')}
+
+// ================================================================
+// 🕸️ 紹介ネットワーク管理
+// ================================================================
+// ストレージキー
+// ================================================================
+// 🌐 Google Apps Script Webアプリ URL（スプレッドシート保存用）
+// ================================================================
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxOC23h189OZE6g28iddbiSUY17zQCyJSWqgi-wsZRjohSONoDUxgRa1ipYraXZJ3tt/exec';
+
+async function gasGet(action) {
+  const res = await fetch(`${GAS_URL}?action=${action}`);
+  const d = await res.json();
+  return d.data || [];
+}
+
+async function gasPost(action, payload) {
+  await fetch(GAS_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, payload }),
+  });
+}
+
+const NET_KEY = 'vex_network';
+
+// LocalStorageをキャッシュとして使い、GASと同期
+async function netLoadRemote() {
+  try {
+    const arr = await gasGet('getNetwork');
+    localStorage.setItem(NET_KEY, JSON.stringify(arr));
+    return arr;
+  } catch(e) {
+    return netLoadLocal();
+  }
+}
+function netLoadLocal() {
+  try { return JSON.parse(localStorage.getItem(NET_KEY)||'[]'); } catch(e){ return []; }
+}
+function netLoad() { return netLoadLocal(); }
+function netStore(arr) { localStorage.setItem(NET_KEY, JSON.stringify(arr)); }
+
+async function netSave() {
+  const user = document.getElementById('net-user').value.trim();
+  const ref1 = document.getElementById('net-ref1').value.trim();
+  const ref2 = document.getElementById('net-ref2').value.trim();
+  if(!user){ netMsg('利用者名を入力してください','error'); return; }
+  const entry = { id: Date.now(), user, ref1, ref2, updatedAt: new Date().toISOString() };
+  // ローカル更新
+  const arr = netLoad();
+  const idx = arr.findIndex(r=>r.user===user);
+  if(idx>=0) arr[idx]=entry; else arr.push(entry);
+  netStore(arr);
+  // GAS保存（非同期・バックグラウンド）
+  gasPost('saveNetwork', entry).catch(()=>{});
+  netMsg(`✅ 「${user}」の紹介関係を登録しました`,'success');
+  renderNetworkTab();
+}
+
+async function netDelete(user) {
+  if(!confirm(`「${user}」の紹介関係を削除しますか？`)) return;
+  netStore(netLoad().filter(r=>r.user!==user));
+  gasPost('deleteNetwork', {user}).catch(()=>{});
+  renderNetworkTab();
+}
+
+function netEdit(user) {
+  const arr = netLoad();
+  const r = arr.find(r=>r.user===user);
+  if(!r) return;
+  document.getElementById('net-user').value = r.user;
+  document.getElementById('net-ref1').value = r.ref1||'';
+  document.getElementById('net-ref2').value = r.ref2||'';
+  document.getElementById('net-user').focus();
+}
+
+function netClear() {
+  ['net-user','net-ref1','net-ref2'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; });
+}
+
+function netMsg(msg, type) {
+  const el = document.getElementById('net-msg');
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  setTimeout(()=>el.className='alert hidden', 3000);
+}
+
+function renderNetworkTab() {
+  const arr = netLoad();
+  const search = (document.getElementById('net-search')?.value||'').toLowerCase();
+  const filtered = search ? arr.filter(r=>r.user.includes(search)||r.ref1.includes(search)||r.ref2.includes(search)) : arr;
+
+  // datalistを全メンバー名で補完
+  const allNames = [...new Set([...S.members.map(m=>m.name), ...Object.keys(S.clients)])];
+  ['net-user-list','net-ref1-list','net-ref2-list'].forEach(id=>{
+    const dl = document.getElementById(id);
+    if(dl) dl.innerHTML = allNames.map(n=>`<option value="${n}">`).join('');
+  });
+
+  document.getElementById('net-count').textContent = `${filtered.length}件`;
+
+  // テーブル
+  const tbody = document.getElementById('net-tbody');
+  if(!filtered.length) {
+    tbody.innerHTML = '<tr class="empty"><td colspan="6">登録データなし</td></tr>'; 
+  } else {
+    tbody.innerHTML = filtered.map((r,i)=>{
+      const col = COLORS[i%COLORS.length];
+      const type = getMemberVexType(r.user);
+      const tc = type==='own'?'var(--blue)':'var(--gold)';
+      const typeLbl = type==='own'?'自己資金':'資金提供';
+      const chain = [r.user, r.ref1, r.ref2].filter(Boolean).join(' ← ');
+      return `<tr>
+        <td><div class="mc"><div class="av" style="background:${col}22;color:${col};width:26px;height:26px;border-radius:50%;font-size:11px">${r.user[0]}</div>${r.user}</div></td>
+        <td style="color:${tc};font-size:12px">${typeLbl}</td>
+        <td style="font-size:13px">${r.ref1||'<span style="color:var(--muted)">—</span>'}</td>
+        <td style="font-size:13px">${r.ref2||'<span style="color:var(--muted)">—</span>'}</td>
+        <td style="font-size:11.5px;color:var(--muted);font-family:var(--mono)">${chain}</td>
+        <td style="white-space:nowrap">
+          <button onclick="netEdit('${r.user}')" style="background:transparent;border:none;color:var(--blue);cursor:pointer;font-size:12px;padding:2px 6px">✏️</button>
+          <button onclick="netDelete('${r.user}')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:2px 6px">✕</button>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  // ネットワーク統計
+  const totalUsers = arr.length;
+  const withRef1 = arr.filter(r=>r.ref1).length;
+  const withRef2 = arr.filter(r=>r.ref2).length;
+  const topReferrers = {};
+  arr.forEach(r=>{ if(r.ref1){ topReferrers[r.ref1]=(topReferrers[r.ref1]||0)+1; } });
+  const sorted = Object.entries(topReferrers).sort((a,b)=>b[1]-a[1]).slice(0,3);
+  document.getElementById('net-stats').innerHTML = `
+    <div>👤 登録ユーザー数: <strong>${totalUsers}</strong></div>
+    <div>🔗 直紹介あり: <strong>${withRef1}</strong>名</div>
+    <div>🔗🔗 間接紹介あり: <strong>${withRef2}</strong>名</div>
+    <div style="margin-top:10px;font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em">トップ紹介者</div>
+    ${sorted.map(([name,cnt])=>`<div style="color:var(--gold)">🏆 ${name}: ${cnt}名紹介</div>`).join('')||'<div style="color:var(--muted)">データなし</div>'}`;
+
+  // ツリービジュアル
+  const tree = document.getElementById('net-tree');
+  // root（誰にも紹介されていない人）を特定
+  const referred = new Set(arr.map(r=>r.user));
+  const roots = arr.filter(r=>!arr.some(a=>a.ref1===r.user||a.ref2===r.user)).map(r=>r.ref1||r.user);
+  const uniqueRoots = [...new Set([...arr.map(r=>r.ref1||r.user)].filter(name=>!arr.some(a=>a.user===name&&(a.ref1||a.ref2))))];
+
+  function buildTree(refName, depth=0) {
+    if(depth>4) return '';
+    const children = arr.filter(r=>r.ref1===refName);
+    const indent = '　'.repeat(depth);
+    const icon = depth===0?'🌱':depth===1?'🌿':'🍃';
+    let html = `<div style="padding:3px 0;font-size:${13-depth}px;color:${depth===0?'var(--blue)':depth===1?'var(--text)':'var(--dim)'}">
+      ${indent}${icon} <strong>${refName}</strong>
+      ${children.length?`<span style="font-size:10px;color:var(--muted);margin-left:4px">(${children.length}名紹介)</span>`:''}
+    </div>`;
+    children.forEach(c=>{ html+=buildTree(c.user, depth+1); });
+    return html;
+  }
+
+  // 紹介者として登録されている人をrootに
+  const allRefs = new Set(arr.map(r=>r.ref1).filter(Boolean));
+  const topLevel = [...allRefs].filter(name=>!arr.some(r=>r.user===name&&r.ref1));
+  // 誰も紹介者でない独立ユーザーも表示
+  const standalone = arr.filter(r=>!r.ref1&&!allRefs.has(r.user)).map(r=>r.user);
+
+  if(!arr.length) {
+    tree.innerHTML = '<div style="color:var(--muted);font-size:13px">紹介関係を登録するとツリーが表示されます</div>';
+  } else {
+    tree.innerHTML = [
+      ...topLevel.map(name=>buildTree(name,0)),
+      ...standalone.map(name=>`<div style="padding:3px 0;font-size:13px;color:var(--muted)">🔘 ${name} <span style="font-size:10px">（紹介なし）</span></div>`)
+    ].join('') || '<div style="color:var(--muted)">ツリーを構築できません。紹介関係を登録してください。</div>';
+  }
+}
+
+// ================================================================
+// 📒 清算履歴管理
+// ================================================================
+const HIST_KEY = 'vex_settlement_history';
+
+function histLoad() {
+  try { return JSON.parse(localStorage.getItem(HIST_KEY)||'[]'); } catch(e){ return []; }
+}
+function histStore(arr) { localStorage.setItem(HIST_KEY, JSON.stringify(arr)); }
+
+// GASからデータを取得してLocalStorageに同期
+async function histLoadRemote() {
+  try {
+    const arr = await gasGet('getHistory');
+    // idを数値変換して保存
+    const normalized = arr.map(r=>({...r, id: Number(r.id)||r.id}));
+    histStore(normalized);
+    return normalized;
+  } catch(e) {
+    return histLoad();
+  }
+}
+
+function histCalcPreview() {
+  const profit = parseFloat(document.getElementById('hist-profit')?.value)||0;
+  const type = document.getElementById('hist-type')?.value||'fund';
+  const preview = document.getElementById('hist-preview');
+  const rows = document.getElementById('hist-preview-rows');
+  if(!profit || !preview) return;
+  const r = calcVex(profit, type);
+  preview.style.display = '';
+  const items = [
+    ['ユーザー手取り', r.user, type==='own'?'var(--blue)':'var(--gold)'],
+    ['直紹介者報酬', r.refDirect, '#a5c4ff'],
+    ['間接紹介者報酬', r.refIndirect, '#a5c4ff'],
+    ['運営（複利）', r.ops, 'var(--gold)'],
+    ['リスク管理（複利）', r.risk, 'var(--green)'],
+  ];
+  rows.innerHTML = items.map(([lbl,val,col])=>
+    `<div style="display:flex;justify-content:space-between"><span style="color:var(--muted)">${lbl}</span><span style="font-family:var(--mono);color:${col}">¥${fmt(val)}</span></div>`
+  ).join('');
+}
+
+async function histSave() {
+  const ym    = document.getElementById('hist-ym')?.value;
+  const user  = document.getElementById('hist-user')?.value.trim();
+  const type  = document.getElementById('hist-type')?.value||'fund';
+  const period= document.getElementById('hist-period')?.value.trim();
+  const profit= parseFloat(document.getElementById('hist-profit')?.value)||0;
+  const ref1  = document.getElementById('hist-ref1')?.value.trim();
+  const ref2  = document.getElementById('hist-ref2')?.value.trim();
+  const memo  = document.getElementById('hist-memo')?.value.trim();
+
+  if(!ym||!user){ histMsg('清算年月と利用者名は必須です','error'); return; }
+
+  const r = calcVex(profit, type);
+  const entry = {
+    id: Date.now(),
+    ym, user, type, period, profit,
+    user_reward: r.user, ref1_reward: r.refDirect, ref2_reward: r.refIndirect,
+    ops_reward: r.ops, risk_reward: r.risk,
+    ref1, ref2, memo,
+    createdAt: new Date().toISOString()
+  };
+  // ローカル更新
+  const arr = histLoad();
+  arr.unshift(entry);
+  histStore(arr);
+  // GAS保存（非同期・バックグラウンド）
+  gasPost('saveHistory', entry).catch(()=>{});
+  histMsg(`✅ 「${user}」の清算記録を保存しました`,'success');
+  ['hist-ym','hist-user','hist-period','hist-profit','hist-ref1','hist-ref2','hist-memo'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  document.getElementById('hist-preview').style.display='none';
+  renderHistoryTab();
+}
+
+async function histDelete(id) {
+  if(!confirm('この清算記録を削除しますか？')) return;
+  histStore(histLoad().filter(r=>r.id!==id));
+  gasPost('deleteHistory', {id}).catch(()=>{});
+  renderHistoryTab();
+}
+
+function histMsg(msg, type) {
+  const el = document.getElementById('hist-msg');
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  setTimeout(()=>el.className='alert hidden', 3000);
+}
+
+function renderHistoryTab() {
+  const arr = histLoad();
+  const filterYear = document.getElementById('hist-filter-year')?.value||'';
+  const filterMonth = document.getElementById('hist-filter-month')?.value||'';
+
+  // datalist補完
+  const allNames = [...new Set([...S.members.map(m=>m.name), ...Object.keys(S.clients)])];
+  ['hist-user-list','hist-ref1-list','hist-ref2-list'].forEach(id=>{
+    const dl=document.getElementById(id);
+    if(dl) dl.innerHTML=allNames.map(n=>`<option value="${n}">`).join('');
+  });
+
+  // 年フィルタ選択肢更新
+  const years = [...new Set(arr.map(r=>r.ym?.split('-')[0]).filter(Boolean))].sort().reverse();
+  const yrSel = document.getElementById('hist-filter-year');
+  if(yrSel) {
+    const cur = yrSel.value;
+    yrSel.innerHTML = '<option value="">全年</option>' + years.map(y=>`<option value="${y}" ${y===cur?'selected':''}>${y}年</option>`).join('');
+  }
+
+  // フィルタ
+  const filtered = arr.filter(r=>{
+    const [ry,rm] = (r.ym||'').split('-');
+    if(filterYear && ry!==filterYear) return false;
+    if(filterMonth && rm!==filterMonth.padStart(2,'0')) return false;
+    return true;
+  });
+
+  document.getElementById('hist-count').textContent = `${filtered.length}件`;
+
+  // テーブル
+  const tbody = document.getElementById('hist-tbody');
+  if(!filtered.length) {
+    tbody.innerHTML = '<tr class="empty"><td colspan="10">履歴データなし</td></tr>';
+  } else {
+    tbody.innerHTML = filtered.map(r=>{
+      const [ry,rm] = (r.ym||'').split('-');
+      const ymLbl = ry&&rm ? `${ry}年${parseInt(rm)}月` : '—';
+      const tc = r.type==='own'?'var(--blue)':'var(--gold)';
+      const typeLbl = r.type==='own'?'自己資金':'資金提供';
+      return `<tr>
+        <td style="font-family:var(--mono);font-size:12px">${ymLbl}</td>
+        <td style="font-weight:500">${r.user}</td>
+        <td style="color:${tc};font-size:12px">${typeLbl}</td>
+        <td style="font-size:11.5px;color:var(--muted)">${r.period||'—'}</td>
+        <td class="mn" style="font-size:12px">¥${fmt(r.profit)}</td>
+        <td class="mn" style="color:${tc};font-weight:600">¥${fmt(r.user_reward)}</td>
+        <td class="mn" style="color:#a5c4ff;font-size:12px">¥${fmt(r.ref1_reward)}</td>
+        <td class="mn" style="color:#a5c4ff;font-size:12px">¥${fmt(r.ref2_reward)}</td>
+        <td style="font-size:11.5px;color:var(--muted)">${r.memo||'—'}</td>
+        <td><button onclick="histDelete(${r.id})" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px">✕</button></td>
+      </tr>`;
+    }).join('');
+  }
+
+  // サマリーカード
+  const totProfit = filtered.reduce((s,r)=>s+r.profit,0);
+  const totUser   = filtered.reduce((s,r)=>s+r.user_reward,0);
+  const totRef1   = filtered.reduce((s,r)=>s+r.ref1_reward,0);
+  const totRef2   = filtered.reduce((s,r)=>s+r.ref2_reward,0);
+  document.getElementById('hist-stat-grid').innerHTML = `
+    <div class="stat-card"><div class="stat-lbl">累計利益合計</div><div class="stat-val">¥${fmt(totProfit)}</div><div class="stat-sub">${filtered.length}件</div></div>
+    <div class="stat-card"><div class="stat-lbl">ユーザー報酬合計</div><div class="stat-val" style="color:var(--blue)">¥${fmt(totUser)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">直紹介報酬合計</div><div class="stat-val" style="color:#a5c4ff">¥${fmt(totRef1)}</div></div>
+    <div class="stat-card"><div class="stat-lbl">間接紹介報酬合計</div><div class="stat-val" style="color:#a5c4ff">¥${fmt(totRef2)}</div></div>`;
+}
+
+function histExportCSV() {
+  const arr = histLoad();
+  if(!arr.length){ alert('エクスポートするデータがありません'); return; }
+  const headers = ['清算年月','利用者','資金タイプ','対象期間','3ヶ月累計利益','ユーザー報酬','直紹介報酬','間接紹介報酬','運営','リスク管理','直紹介者','間接紹介者','メモ','記録日時'];
+  const rows = arr.map(r=>[
+    r.ym, r.user, r.type==='own'?'自己資金':'資金提供', r.period||'',
+    r.profit, r.user_reward, r.ref1_reward, r.ref2_reward, r.ops_reward, r.risk_reward,
+    r.ref1||'', r.ref2||'', r.memo||'', r.createdAt
+  ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
+  const csv = '\uFEFF' + [headers.join(','), ...rows].join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
+  a.download = `VEX清算履歴_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+</script>
+</body>
+</html>
