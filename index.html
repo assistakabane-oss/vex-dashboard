@@ -10,7 +10,7 @@
 <style>
 :root{
   --bg:#080b12;--surface:#0e1117;--card:#131820;--card2:#181f2a;
-  --border:#1e2738;--border2:#263044;
+  --border:#1e2738;--border2:#263044;h
   --blue:#4a8cff;--blue-dim:rgba(74,140,255,.15);
   --gold:#e8a84a;--gold-dim:rgba(232,168,74,.12);
   --green:#34c78a;--red:#f05555;
@@ -1348,7 +1348,7 @@ function sw(name){
   if(name==='fund') renderFundTab();
   if(name==='network') { netLoadRemote().then(arr=>{ if(arr.length) renderNetworkTab(); }); renderNetworkTab(); }
   if(name==='history') { histLoadRemote().then(arr=>{ if(arr.length) renderHistoryTab(); }); renderHistoryTab(); }
-  if(name==='payment') renderPaymentTab();
+  if(name==='payment') renderBankTab();
   if(name==='vexstatus') renderVexStatus();
 }
 
