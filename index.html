@@ -621,67 +621,171 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
     <!-- 💳 支払い管理タブ -->
     <div id="tab-payment" class="tab-pane">
+      <!-- ツールバー -->
       <div class="toolbar" style="margin-bottom:18px">
-        <button class="btn btn-primary btn-sm" onclick="loadPaymentSheet()">🔄 支払いシートを読み込む</button>
+        <button class="btn btn-primary btn-sm" onclick="loadBankTransfers()">🔄 データを読み込む</button>
+        <button class="btn btn-secondary btn-sm" onclick="openBankForm()">➕ 新規追加</button>
         <div style="font-size:12px;color:var(--muted);margin-left:8px" id="payment-last-load"></div>
         <div class="ml-auto"></div>
-        <input class="inp" id="payment-search" placeholder="名前で検索..." oninput="renderPaymentTab()" style="width:160px;padding:6px 10px;font-size:12px"/>
+        <select class="inp" id="bank-filter-type" onchange="renderBankTab()" style="width:110px;padding:6px 10px;font-size:12px">
+          <option value="">全タイプ</option>
+          <option value="自己資金">自己資金</option>
+          <option value="資金提供">資金提供</option>
+        </select>
+        <select class="inp" id="bank-filter-status" onchange="renderBankTab()" style="width:110px;padding:6px 10px;font-size:12px">
+          <option value="">全ステータス</option>
+          <option value="未送金">未送金</option>
+          <option value="送金済み">送金済み</option>
+        </select>
+        <input class="inp" id="payment-search" placeholder="名前で検索..." oninput="renderBankTab()" style="width:150px;padding:6px 10px;font-size:12px"/>
       </div>
 
       <!-- サマリーカード -->
-      <div class="stat-grid" id="payment-stat-grid" style="margin-bottom:22px">
-        <div class="stat-card"><div class="stat-lbl">振込対象（残高なし）</div><div class="stat-val" id="pay-count-transfer" style="color:var(--blue)">0名</div></div>
-        <div class="stat-card"><div class="stat-lbl">出金対象（残高あり）</div><div class="stat-val" id="pay-count-withdraw" style="color:var(--gold)">0名</div></div>
+      <div class="stat-grid" style="margin-bottom:22px">
         <div class="stat-card"><div class="stat-lbl">自己資金</div><div class="stat-val" id="pay-count-own" style="color:var(--green)">0名</div></div>
-        <div class="stat-card"><div class="stat-lbl">紹介報酬支払い</div><div class="stat-val" id="pay-count-ref" style="color:#a5c4ff">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">資金提供</div><div class="stat-val" id="pay-count-fund" style="color:var(--blue)">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">未送金</div><div class="stat-val" id="pay-count-pending" style="color:var(--gold)">0名</div></div>
+        <div class="stat-card"><div class="stat-lbl">送金済み</div><div class="stat-val" id="pay-count-done" style="color:var(--green)">0名</div></div>
         <div class="stat-card"><div class="stat-lbl">振込合計</div><div class="stat-val" id="pay-total" style="color:var(--text)">¥0</div></div>
+        <div class="stat-card"><div class="stat-lbl">報酬合計</div><div class="stat-val" id="pay-reward-total" style="color:var(--gold)">¥0</div></div>
       </div>
 
-      <!-- 区分タブ -->
-      <div style="display:flex;gap:6px;margin-bottom:16px">
-        <button class="pill active" id="pay-tab-all" onclick="payFilterTab('all')">全て</button>
-        <button class="pill" id="pay-tab-transfer" onclick="payFilterTab('transfer')">💸 振込（残高なし）</button>
-        <button class="pill" id="pay-tab-withdraw" onclick="payFilterTab('withdraw')">🏦 出金（残高あり）</button>
-        <button class="pill" id="pay-tab-own" onclick="payFilterTab('own')">💼 自己資金</button>
-        <button class="pill" id="pay-tab-ref" onclick="payFilterTab('ref')">🔗 紹介報酬</button>
-      </div>
-
-      <!-- 支払い一覧テーブル -->
+      <!-- 銀行送金一覧テーブル -->
       <div class="tbl-card">
         <div class="tbl-hdr">
-          <div class="tbl-ttl">💳 支払い一覧</div>
+          <div class="tbl-ttl">💳 銀行送金一覧</div>
           <div class="tbl-sub" id="payment-count">0件</div>
         </div>
         <div style="overflow-x:auto">
-          <table style="min-width:1000px">
+          <table style="min-width:1100px">
             <thead><tr>
-              <th>区分</th><th>名前</th><th>振込／出金金額</th><th>実際の報酬額</th>
-              <th>本人報酬</th><th>紹介報酬</th><th>紹介者</th><th>銀行残高</th><th>振込予定日</th><th>備考</th>
+              <th>タイプ</th>
+              <th>名前</th>
+              <th>銀行情報</th>
+              <th>振込金額</th>
+              <th>実際の報酬額</th>
+              <th style="background:rgba(138,100,255,.08);color:#b49dff">本人報酬</th>
+              <th style="background:rgba(52,199,138,.08);color:#34c78a">直紹介</th>
+              <th style="background:rgba(232,168,74,.08);color:#e8a84a">間接紹介</th>
+              <th>振込予定日</th>
+              <th>紹介者</th>
+              <th>ステータス</th>
+              <th>備考</th>
+              <th>操作</th>
             </tr></thead>
             <tbody id="payment-tbody">
-              <tr class="empty"><td colspan="10">「支払いシートを読み込む」ボタンで取得してください</td></tr>
+              <tr class="empty"><td colspan="13">「データを読み込む」ボタンで取得してください</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- VEX計算との突合 -->
-      <div class="chart-card" style="margin-top:16px">
-        <div class="card-ttl">🔍 VEX計算との差異チェック <span class="badge">支払い実績 vs 計算値</span></div>
-        <div id="payment-diff-area" style="font-size:13px;color:var(--muted);padding:12px 0">
-          支払いシートとVEX計算データを読み込むと、差異を表示します。
-        </div>
-      </div>
-
-      <!-- 紹介者別支払いサマリー -->
+      <!-- 紹介者別報酬サマリー -->
       <div class="tbl-card" style="margin-top:16px">
         <div class="tbl-hdr"><div class="tbl-ttl">🔗 紹介者別 報酬サマリー</div></div>
         <table>
-          <thead><tr><th>紹介者名</th><th>直紹介人数</th><th>直紹介報酬合計</th><th>間接紹介報酬</th><th>合計報酬</th><th>状況</th></tr></thead>
+          <thead><tr><th>紹介者名</th><th>直紹介人数</th><th>直紹介報酬合計</th><th>間接紹介報酬合計</th><th>合計報酬</th></tr></thead>
           <tbody id="ref-summary-tbody">
-            <tr class="empty"><td colspan="6">データなし</td></tr>
+            <tr class="empty"><td colspan="5">データなし</td></tr>
           </tbody>
         </table>
+      </div>
+    </div>
+
+    <!-- 銀行送金 入力フォームモーダル -->
+    <div id="bank-modal" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:200;display:flex;align-items:center;justify-content:center;padding:16px">
+      <div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;padding:28px;width:100%;max-width:580px;max-height:90vh;overflow-y:auto">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+          <div style="font-size:15px;font-weight:600" id="bank-modal-title">➕ 新規追加</div>
+          <button class="btn btn-secondary btn-sm" onclick="closeBankForm()">✕ 閉じる</button>
+        </div>
+        <input type="hidden" id="bank-row-index"/>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+          <div class="fg" style="grid-column:1/-1">
+            <label class="lbl">名前</label>
+            <input class="inp" id="bank-name" placeholder="例：山田 太郎"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">タイプ</label>
+            <select class="inp" id="bank-type" onchange="updateBankRates()">
+              <option value="資金提供">資金提供</option>
+              <option value="自己資金">自己資金</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="lbl">送金ステータス</label>
+            <select class="inp" id="bank-status">
+              <option value="未送金">未送金</option>
+              <option value="送金済み">送金済み</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="lbl">銀行名</label>
+            <input class="inp" id="bank-bankname" placeholder="例：住信SBIネット銀行"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">支店名</label>
+            <input class="inp" id="bank-branch" placeholder="例：イチゴ支店"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">口座種別</label>
+            <select class="inp" id="bank-account-type">
+              <option value="普通">普通</option>
+              <option value="当座">当座</option>
+            </select>
+          </div>
+          <div class="fg">
+            <label class="lbl">口座番号</label>
+            <input class="inp" id="bank-account-number" placeholder="例：3778593"/>
+          </div>
+          <div class="fg" style="grid-column:1/-1">
+            <label class="lbl">口座名義（カナ）</label>
+            <input class="inp" id="bank-holder" placeholder="例：ヤマダ タロウ"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">振込金額</label>
+            <input class="inp" id="bank-transfer-amount" type="number" placeholder="例：110000" oninput="updateBankRates()"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">実際の報酬額</label>
+            <input class="inp" id="bank-reward-amount" type="number" placeholder="例：110000" oninput="updateBankRates()"/>
+          </div>
+          <!-- 報酬内訳（自動計算） -->
+          <div style="grid-column:1/-1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px">
+            <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:600">分配報酬内訳（自動計算）</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+              <div style="text-align:center">
+                <div style="font-size:10px;color:#b49dff;margin-bottom:4px">本人報酬 <span id="bank-rate-self">15%</span></div>
+                <div style="font-size:16px;font-family:var(--mono);font-weight:600;color:#b49dff" id="bank-calc-self">¥0</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--green);margin-bottom:4px">直紹介 <span id="bank-rate-direct">5%</span></div>
+                <div style="font-size:16px;font-family:var(--mono);font-weight:600;color:var(--green)" id="bank-calc-direct">¥0</div>
+              </div>
+              <div style="text-align:center">
+                <div style="font-size:10px;color:var(--gold);margin-bottom:4px">間接紹介 <span id="bank-rate-indirect">5%</span></div>
+                <div style="font-size:16px;font-family:var(--mono);font-weight:600;color:var(--gold)" id="bank-calc-indirect">¥0</div>
+              </div>
+            </div>
+          </div>
+          <div class="fg">
+            <label class="lbl">振込予定日</label>
+            <input class="inp" id="bank-date" placeholder="例：12/19"/>
+          </div>
+          <div class="fg">
+            <label class="lbl">紹介者</label>
+            <input class="inp" id="bank-referrer" placeholder="例：三國"/>
+          </div>
+          <div class="fg" style="grid-column:1/-1">
+            <label class="lbl">備考</label>
+            <input class="inp" id="bank-note" placeholder="例：送金済み・5.5万三國さんへ紹介報酬"/>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px">
+          <button class="btn btn-primary btn-full" onclick="saveBankEntry()">💾 保存する</button>
+          <button class="btn btn-secondary btn-sm" id="bank-delete-btn" onclick="deleteBankEntry()" style="display:none;background:rgba(240,85,85,.1);border-color:var(--red);color:var(--red)">🗑 削除</button>
+        </div>
+        <div id="bank-form-msg" style="margin-top:12px;font-size:12px"></div>
       </div>
     </div>
 
@@ -834,11 +938,11 @@ tr:hover td{background:rgba(255,255,255,.015)}
 <script>
 const SALES_ID='1F07O3cwj7SlqEQKz5sz7L81vEiEqHKmM8Czg1cxHIAs';
 const CLIENT_ID='1nVhHCSLQLtkWZQ-cBYHEGL1qYyqfBKjYIX2uPySQQ2c';
-const PAYMENT_ID='1aFwtiDPD0VN64jeS48Wjvm9FmuealJyopGowM6-ouVM';
+const PAYMENT_ID='1PhCM_xXwsDqFRcABHXeWVM1LZ7NkZt2PuPvxj6HGPcw';
 const VEX_STATUS_ID='161CoqauS6weOsIIkqRTrIaDZ5qrDzI5cZr62q2v4hkk';
 const SALES_SHEET='鈴村年間収支表';
 const CLIENT_SHEET='運用状況';
-const PAYMENT_SHEET='シート1';
+const PAYMENT_SHEET='銀行送金';
 const VEX_STATUS_SHEET='VEX準備状況v2';
 // 運営チームメンバー（固定）
 const OPS_TEAM = ['中野','中原','種田','松村','小川','後藤'];
@@ -1249,188 +1353,248 @@ function sw(name){
 }
 
 // ================================================================
-// 💳 支払い管理タブ（支払いシート同期）
+// 💳 銀行送金管理タブ
 // ================================================================
 function parseNum(s){return parseFloat((s||'').toString().replace(/[¥,\s円]/g,'').replace(/[^\d.-]/g,''))||0;}
 
-function parsePaymentSheet(values){
-  const results=[];
-  let currentCategory='';
-  for(let i=0;i<values.length;i++){
-    const row=values[i]||[];
-    const first=(row[0]||'').toString().trim();
-    const name=(row[0]||'').toString().trim();
+const BANK_RATES={
+  '自己資金':{self:0.30,direct:0.10,indirect:0.05},
+  '資金提供':{self:0.15,direct:0.05,indirect:0.05}
+};
 
-    // カテゴリ判定
-    if(first==='資金貸付') continue;
-    if(first==='残高無し'){currentCategory='transfer';continue;}
-    if(first==='残高あり'){currentCategory='withdraw';continue;}
-    if(first==='自己資金'){currentCategory='own';continue;}
-    if(first==='紹介報酬'){currentCategory='ref';continue;}
-    if(!first||first==='名前'||first==='直紹介'||first==='間接紹介') continue;
+S.bankData=[];
 
-    // ヘッダー行スキップ
-    if(row[1]==='振込金額'||row[1]==='出金金額'||row[1]==='未振込金額') continue;
-
-    const transferAmt=parseNum(row[1]);
-    const actualAmt=parseNum(row[2]);
-    const bankInfo=(row[3]||'').toString().trim();
-    const scheduledDate=(row[4]||'').toString().trim();
-    const distAmt20=parseNum(row[5]);
-    const userAmt=parseNum(row[6]);
-    const refAmt=parseNum(row[7]);
-    const bankBalance=parseNum(row[8]);
-    const referrer=(row[9]||'').toString().trim();
-    const note=(row[10]||'').toString().trim();
-
-    if(!name||name==='Ｍさん'||name==='笠さん'||name==='石田さん'||name==='Ｙ川さん'||name==='Ｙさん') {
-      // 紹介者サマリー行として処理
-      if(currentCategory==='ref'&&name){
-        results.push({category:'ref',name,refDetails:(row[1]||'').toString(),paidDetails:(row[2]||'').toString(),bankInfo,referrer,note});
-      }
-      continue;
-    }
-
-    results.push({
-      category:currentCategory||'unknown',
-      name:name.replace(/\s+/g,''),
-      transferAmt,actualAmt,bankInfo,scheduledDate,
-      distAmt20,userAmt,refAmt,bankBalance,referrer,note
-    });
-  }
-  return results;
-}
-
-async function loadPaymentSheet(){
-  showLoad('支払いシートを読み込み中...');
+async function loadBankTransfers(){
+  showLoad('銀行送金データを読み込み中...');
   try{
-    const vals=await sheetsAPI(PAYMENT_ID,`${PAYMENT_SHEET}!A1:K60`);
-    S.paymentData=parsePaymentSheet(vals);
-    hideLoad();
-    const now=new Date().toLocaleString('ja-JP');
-    const lbl=document.getElementById('payment-last-load');
-    if(lbl) lbl.textContent=`最終読込: ${now}`;
-    renderPaymentTab();
+    const json=await gasGet('getBankTransfers');
+    if(json.success){
+      S.bankData=json.data||[];
+      const now=new Date().toLocaleString('ja-JP');
+      const lbl=document.getElementById('payment-last-load');
+      if(lbl) lbl.textContent=`最終読込: ${now} (${S.bankData.length}件)`;
+      renderBankTab();
+    } else {
+      alert('読み込みエラー: '+(json.error||'不明'));
+    }
   }catch(e){
-    hideLoad();
-    alert('支払いシート読み込みエラー: '+e.message);
+    alert('通信エラー: '+e.message);
   }
+  hideLoad();
 }
 
-let payCurrentFilter='all';
-function payFilterTab(filter){
-  payCurrentFilter=filter;
-  ['all','transfer','withdraw','own','ref'].forEach(f=>{
-    const b=document.getElementById(`pay-tab-${f}`);
-    if(b) b.classList.toggle('active',f===filter);
-  });
-  renderPaymentTab();
-}
-
-function renderPaymentTab(){
+function renderBankTab(){
   const search=(document.getElementById('payment-search')?.value||'').toLowerCase();
-  const data=S.paymentData.filter(r=>r.category!=='ref');
-  const refData=S.paymentData.filter(r=>r.category==='ref');
+  const typeFilter=document.getElementById('bank-filter-type')?.value||'';
+  const statusFilter=document.getElementById('bank-filter-status')?.value||'';
 
-  // フィルタ適用
-  const filtered=data.filter(r=>{
-    if(search&&!r.name.toLowerCase().includes(search)) return false;
-    if(payCurrentFilter==='all') return true;
-    if(payCurrentFilter==='ref') return false;
-    return r.category===payCurrentFilter;
+  const filtered=(S.bankData||[]).filter(r=>{
+    if(search&&!(r.name||'').toLowerCase().includes(search)) return false;
+    if(typeFilter&&r.type!==typeFilter) return false;
+    if(statusFilter&&r.status!==statusFilter) return false;
+    return true;
   });
 
-  // サマリー更新
-  document.getElementById('pay-count-transfer').textContent=data.filter(r=>r.category==='transfer').length+'名';
-  document.getElementById('pay-count-withdraw').textContent=data.filter(r=>r.category==='withdraw').length+'名';
-  document.getElementById('pay-count-own').textContent=data.filter(r=>r.category==='own').length+'名';
-  document.getElementById('pay-count-ref').textContent=refData.length+'名';
-  const totalPay=data.reduce((s,r)=>s+(r.transferAmt||r.actualAmt||0),0);
-  document.getElementById('pay-total').textContent='¥'+fmt(totalPay);
+  // サマリー
+  const own=(S.bankData||[]).filter(r=>r.type==='自己資金');
+  const fund=(S.bankData||[]).filter(r=>r.type==='資金提供');
+  const pending=(S.bankData||[]).filter(r=>r.status==='未送金');
+  const done=(S.bankData||[]).filter(r=>r.status==='送金済み');
+  document.getElementById('pay-count-own').textContent=own.length+'名';
+  document.getElementById('pay-count-fund').textContent=fund.length+'名';
+  document.getElementById('pay-count-pending').textContent=pending.length+'名';
+  document.getElementById('pay-count-done').textContent=done.length+'名';
+  document.getElementById('pay-total').textContent='¥'+fmt((S.bankData||[]).reduce((s,r)=>s+(parseFloat(r.transferAmount)||0),0));
+  document.getElementById('pay-reward-total').textContent='¥'+fmt((S.bankData||[]).reduce((s,r)=>s+(parseFloat(r.rewardAmount)||0),0));
   document.getElementById('payment-count').textContent=filtered.length+'件';
-
-  const catColors={transfer:'var(--blue)',withdraw:'var(--gold)',own:'var(--green)',unknown:'var(--muted)'};
-  const catLabels={transfer:'💸振込',withdraw:'🏦出金',own:'💼自己資金',unknown:'—'};
 
   const tbody=document.getElementById('payment-tbody');
   if(!filtered.length){
-    tbody.innerHTML='<tr class="empty"><td colspan="10">データなし</td></tr>';
+    tbody.innerHTML='<tr class="empty"><td colspan="13">データなし</td></tr>';
   } else {
     tbody.innerHTML=filtered.map(r=>{
-      const tc=catColors[r.category]||'var(--muted)';
-      const catLbl=catLabels[r.category]||r.category;
-      const bankShort=r.bankInfo?r.bankInfo.split('\n')[0]:'—';
-      const isDone=r.note&&(r.note.includes('済み')||r.note.includes('済'));
+      const isOwn=r.type==='自己資金';
+      const tc=isOwn?'var(--green)':'var(--blue)';
+      const isDone=r.status==='送金済み';
+      const bankShort=[r.bankName,r.branchName,r.accountType,r.accountNumber].filter(Boolean).join(' / ');
       return`<tr>
-        <td><span class="rb" style="background:${tc}22;color:${tc};font-size:11px">${catLbl}</span></td>
-        <td style="font-weight:500">${r.name}</td>
-        <td class="mn">¥${fmt(r.transferAmt||r.actualAmt)}</td>
-        <td class="mn" style="font-size:12px">¥${fmt(r.actualAmt)}</td>
-        <td class="mn" style="color:${tc}">¥${fmt(r.userAmt)}</td>
-        <td class="mn" style="color:#a5c4ff;font-size:12px">¥${fmt(r.refAmt)}</td>
+        <td><span class="rb" style="background:${tc}22;color:${tc};font-size:11px">${r.type||'—'}</span></td>
+        <td style="font-weight:500">${r.name||'—'}</td>
+        <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:normal;line-height:1.5">${bankShort||'—'}<br><span style="color:var(--dim)">${r.accountHolder||''}</span></td>
+        <td class="mn">¥${fmt(parseFloat(r.transferAmount)||0)}</td>
+        <td class="mn" style="color:var(--gold)">¥${fmt(parseFloat(r.rewardAmount)||0)}</td>
+        <td class="mn" style="color:#b49dff;font-size:12px">¥${fmt(parseFloat(r.selfReward)||0)}</td>
+        <td class="mn" style="color:var(--green);font-size:12px">¥${fmt(parseFloat(r.directReward)||0)}</td>
+        <td class="mn" style="color:var(--gold);font-size:12px">¥${fmt(parseFloat(r.indirectReward)||0)}</td>
+        <td style="font-size:12px;color:var(--muted)">${r.transferDate||'—'}</td>
         <td style="font-size:12px">${r.referrer||'—'}</td>
-        <td class="mn" style="font-size:12px">¥${fmt(r.bankBalance)}</td>
-        <td style="font-size:12px;color:var(--muted)">${r.scheduledDate||'—'}</td>
-        <td style="font-size:11px;max-width:160px;color:${isDone?'var(--green)':'var(--muted)'}">${r.note||'—'}</td>
+        <td><span class="rb" style="background:${isDone?'rgba(52,199,138,.15)':'rgba(232,168,74,.15)'};color:${isDone?'var(--green)':'var(--gold)'};font-size:11px">${r.status||'—'}</span></td>
+        <td style="font-size:11px;color:var(--muted);max-width:120px">${r.note||'—'}</td>
+        <td style="white-space:nowrap">
+          <button class="btn btn-secondary btn-sm" onclick="editBankEntry(${r.rowIndex})" style="font-size:11px;padding:4px 8px">✏️</button>
+        </td>
       </tr>`;
     }).join('');
-  }
-
-  // VEX計算との差異チェック
-  const diffArea=document.getElementById('payment-diff-area');
-  if(diffArea&&S.members.length&&data.length){
-    const diffs=[];
-    data.forEach(r=>{
-      const member=S.members.find(m=>m.name.replace(/\s/g,'')===r.name.replace(/\s/g,''));
-      if(!member) return;
-      // 直近月の利益で計算
-      const latestRev=(member.months[S.year]||{})[S.month]||0;
-      if(!latestRev) return;
-      const type=getMemberVexType(member.name);
-      const vex=calcVex(latestRev,type);
-      const diff=r.userAmt-vex.user;
-      if(Math.abs(diff)>1000){
-        diffs.push({name:r.name,paid:r.userAmt,calc:vex.user,diff,type});
-      }
-    });
-    if(diffs.length){
-      diffArea.innerHTML=diffs.map(d=>{
-        const col=d.diff>0?'var(--gold)':'var(--red)';
-        return`<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
-          <span style="font-weight:500">${d.name}</span>
-          <span style="font-size:12px;color:var(--muted)">支払: ¥${fmt(d.paid)} / 計算値: ¥${fmt(d.calc)}</span>
-          <span style="font-family:var(--mono);color:${col}">${d.diff>0?'+':''}¥${fmt(d.diff)}</span>
-        </div>`;
-      }).join('');
-    } else {
-      diffArea.innerHTML='<div style="color:var(--green)">✅ 支払い実績とVEX計算値に大きな差異はありません</div>';
-    }
   }
 
   // 紹介者別サマリー
   const refMap={};
-  data.forEach(r=>{
+  (S.bankData||[]).forEach(r=>{
     if(!r.referrer) return;
-    if(!refMap[r.referrer]) refMap[r.referrer]={count:0,directTotal:0,indirectTotal:0};
+    if(!refMap[r.referrer]) refMap[r.referrer]={count:0,direct:0,indirect:0};
     refMap[r.referrer].count++;
-    refMap[r.referrer].directTotal+=r.refAmt||0;
+    refMap[r.referrer].direct+=parseFloat(r.directReward)||0;
+    refMap[r.referrer].indirect+=parseFloat(r.indirectReward)||0;
   });
   const refTbody=document.getElementById('ref-summary-tbody');
-  const refEntries=Object.entries(refMap);
-  if(!refEntries.length){
-    refTbody.innerHTML='<tr class="empty"><td colspan="6">データなし</td></tr>';
+  const entries=Object.entries(refMap);
+  if(!entries.length){
+    refTbody.innerHTML='<tr class="empty"><td colspan="5">データなし</td></tr>';
   } else {
-    refTbody.innerHTML=refEntries.map(([name,d],i)=>{
+    refTbody.innerHTML=entries.map(([name,d],i)=>{
       const col=COLORS[i%COLORS.length];
       return`<tr>
-        <td><div class="mc"><div class="av" style="background:${col}22;color:${col};width:26px;height:26px;border-radius:50%;font-size:11px">${name[0]}</div>${name}</div></td>
+        <td><div class="mc"><div class="av" style="background:${col}22;color:${col};width:26px;height:26px;font-size:11px">${name[0]}</div>${name}</div></td>
         <td class="mn">${d.count}名</td>
-        <td class="mn" style="color:#a5c4ff">¥${fmt(d.directTotal)}</td>
-        <td class="mn" style="color:#a5c4ff">—</td>
-        <td class="mn gd">¥${fmt(d.directTotal)}</td>
-        <td><span class="rb" style="background:rgba(52,199,138,.15);color:var(--green);font-size:11px">記録あり</span></td>
+        <td class="mn" style="color:var(--green)">¥${fmt(d.direct)}</td>
+        <td class="mn" style="color:var(--gold)">¥${fmt(d.indirect)}</td>
+        <td class="mn gd">¥${fmt(d.direct+d.indirect)}</td>
       </tr>`;
     }).join('');
+  }
+}
+
+function updateBankRates(){
+  const type=document.getElementById('bank-type')?.value||'資金提供';
+  const reward=parseFloat(document.getElementById('bank-reward-amount')?.value)||0;
+  const r=BANK_RATES[type]||BANK_RATES['資金提供'];
+  document.getElementById('bank-rate-self').textContent=(r.self*100)+'%';
+  document.getElementById('bank-rate-direct').textContent=(r.direct*100)+'%';
+  document.getElementById('bank-rate-indirect').textContent=(r.indirect*100)+'%';
+  document.getElementById('bank-calc-self').textContent='¥'+fmt(Math.round(reward*r.self));
+  document.getElementById('bank-calc-direct').textContent='¥'+fmt(Math.round(reward*r.direct));
+  document.getElementById('bank-calc-indirect').textContent='¥'+fmt(Math.round(reward*r.indirect));
+}
+
+function openBankForm(){
+  document.getElementById('bank-modal-title').textContent='➕ 新規追加';
+  document.getElementById('bank-row-index').value='';
+  document.getElementById('bank-name').value='';
+  document.getElementById('bank-type').value='資金提供';
+  document.getElementById('bank-status').value='未送金';
+  document.getElementById('bank-bankname').value='';
+  document.getElementById('bank-branch').value='';
+  document.getElementById('bank-account-type').value='普通';
+  document.getElementById('bank-account-number').value='';
+  document.getElementById('bank-holder').value='';
+  document.getElementById('bank-transfer-amount').value='';
+  document.getElementById('bank-reward-amount').value='';
+  document.getElementById('bank-date').value='';
+  document.getElementById('bank-referrer').value='';
+  document.getElementById('bank-note').value='';
+  document.getElementById('bank-delete-btn').style.display='none';
+  document.getElementById('bank-form-msg').textContent='';
+  updateBankRates();
+  document.getElementById('bank-modal').classList.remove('hidden');
+  document.getElementById('bank-modal').style.display='flex';
+}
+
+function editBankEntry(rowIndex){
+  const r=S.bankData.find(d=>d.rowIndex===rowIndex);
+  if(!r) return;
+  document.getElementById('bank-modal-title').textContent='✏️ 編集';
+  document.getElementById('bank-row-index').value=rowIndex;
+  document.getElementById('bank-name').value=r.name||'';
+  document.getElementById('bank-type').value=r.type||'資金提供';
+  document.getElementById('bank-status').value=r.status||'未送金';
+  document.getElementById('bank-bankname').value=r.bankName||'';
+  document.getElementById('bank-branch').value=r.branchName||'';
+  document.getElementById('bank-account-type').value=r.accountType||'普通';
+  document.getElementById('bank-account-number').value=r.accountNumber||'';
+  document.getElementById('bank-holder').value=r.accountHolder||'';
+  document.getElementById('bank-transfer-amount').value=r.transferAmount||'';
+  document.getElementById('bank-reward-amount').value=r.rewardAmount||'';
+  document.getElementById('bank-date').value=r.transferDate||'';
+  document.getElementById('bank-referrer').value=r.referrer||'';
+  document.getElementById('bank-note').value=r.note||'';
+  document.getElementById('bank-delete-btn').style.display='inline-flex';
+  document.getElementById('bank-form-msg').textContent='';
+  updateBankRates();
+  document.getElementById('bank-modal').classList.remove('hidden');
+  document.getElementById('bank-modal').style.display='flex';
+}
+
+function closeBankForm(){
+  document.getElementById('bank-modal').classList.add('hidden');
+  document.getElementById('bank-modal').style.display='none';
+}
+
+async function saveBankEntry(){
+  const rowIndex=document.getElementById('bank-row-index').value;
+  const payload={
+    name:document.getElementById('bank-name').value.trim(),
+    type:document.getElementById('bank-type').value,
+    status:document.getElementById('bank-status').value,
+    bankName:document.getElementById('bank-bankname').value.trim(),
+    branchName:document.getElementById('bank-branch').value.trim(),
+    accountType:document.getElementById('bank-account-type').value,
+    accountNumber:document.getElementById('bank-account-number').value.trim(),
+    accountHolder:document.getElementById('bank-holder').value.trim(),
+    transferAmount:document.getElementById('bank-transfer-amount').value,
+    rewardAmount:document.getElementById('bank-reward-amount').value,
+    transferDate:document.getElementById('bank-date').value.trim(),
+    referrer:document.getElementById('bank-referrer').value.trim(),
+    note:document.getElementById('bank-note').value.trim(),
+  };
+  if(!payload.name){
+    document.getElementById('bank-form-msg').innerHTML='<span style="color:var(--red)">名前を入力してください</span>';
+    return;
+  }
+  const action=rowIndex?'updateBankTransfer':'saveBankTransfer';
+  if(rowIndex) payload.rowIndex=rowIndex;
+  showLoad('保存中...');
+  try{
+    const res=await fetch(GAS_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action,payload})
+    });
+    const json=await res.json();
+    hideLoad();
+    if(json.success){
+      document.getElementById('bank-form-msg').innerHTML='<span style="color:var(--green)">✅ '+json.message+'</span>';
+      setTimeout(()=>{closeBankForm();loadBankTransfers();},800);
+    } else {
+      document.getElementById('bank-form-msg').innerHTML='<span style="color:var(--red)">エラー: '+(json.error||'不明')+'</span>';
+    }
+  }catch(e){
+    hideLoad();
+    document.getElementById('bank-form-msg').innerHTML='<span style="color:var(--red)">通信エラー: '+e.message+'</span>';
+  }
+}
+
+async function deleteBankEntry(){
+  const rowIndex=document.getElementById('bank-row-index').value;
+  if(!rowIndex) return;
+  if(!confirm('このデータを削除しますか？')) return;
+  showLoad('削除中...');
+  try{
+    const res=await fetch(GAS_URL,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({action:'deleteBankTransfer',payload:{rowIndex}})
+    });
+    const json=await res.json();
+    hideLoad();
+    if(json.success){
+      closeBankForm();
+      loadBankTransfers();
+    } else {
+      alert('削除エラー: '+(json.error||'不明'));
+    }
+  }catch(e){
+    hideLoad();
+    alert('通信エラー: '+e.message);
   }
 }
 
@@ -2057,7 +2221,7 @@ function showErr(m){const e=document.getElementById('serr');e.textContent=m;e.cl
 // ================================================================
 // 🌐 Google Apps Script Webアプリ URL（スプレッドシート保存用）
 // ================================================================
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbx80m8jUw7nKhnFeHS19n_t50p-DD5ktnc8ebdS93A4Mevm5rHEN3Fw6KDREhu3jACg/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxOC23h189OZE6g28iddbiSUY17zQCyJSWqgi-wsZRjohSONoDUxgRa1ipYraXZJ3tt/exec';
 
 async function gasGet(action) {
   const res = await fetch(`${GAS_URL}?action=${action}`);
