@@ -2313,7 +2313,7 @@ function renderNetworkTab() {
     if(dl) dl.innerHTML = allNames.map(n=>`<option value="${n}">`).join('');
   });
 
-  document.getElementById('net-count').textContent = `${filtered.length}件`;
+  document.getElementById('net-count').textContent = `${(filtered||[]).length}件`;
 
   // テーブル
   const tbody = document.getElementById('net-tbody');
@@ -2510,7 +2510,7 @@ function renderHistoryTab() {
     return true;
   });
 
-  document.getElementById('hist-count').textContent = `${filtered.length}件`;
+  document.getElementById('hist-count').textContent = `${(filtered||[]).length}件`;
 
   // テーブル
   const tbody = document.getElementById('hist-tbody');
@@ -2543,7 +2543,7 @@ function renderHistoryTab() {
   const totRef1   = filtered.reduce((s,r)=>s+r.ref1_reward,0);
   const totRef2   = filtered.reduce((s,r)=>s+r.ref2_reward,0);
   document.getElementById('hist-stat-grid').innerHTML = `
-    <div class="stat-card"><div class="stat-lbl">累計利益合計</div><div class="stat-val">¥${fmt(totProfit)}</div><div class="stat-sub">${filtered.length}件</div></div>
+    <div class="stat-card"><div class="stat-lbl">累計利益合計</div><div class="stat-val">¥${fmt(totProfit)}</div><div class="stat-sub">${(filtered||[]).length}件</div></div>
     <div class="stat-card"><div class="stat-lbl">ユーザー報酬合計</div><div class="stat-val" style="color:var(--blue)">¥${fmt(totUser)}</div></div>
     <div class="stat-card"><div class="stat-lbl">直紹介報酬合計</div><div class="stat-val" style="color:#a5c4ff">¥${fmt(totRef1)}</div></div>
     <div class="stat-card"><div class="stat-lbl">間接紹介報酬合計</div><div class="stat-val" style="color:#a5c4ff">¥${fmt(totRef2)}</div></div>`;
