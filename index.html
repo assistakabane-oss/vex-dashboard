@@ -1556,7 +1556,6 @@ async function saveBankEntry(){
   try{
     const res=await fetch(GAS_URL,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({action,payload})
     });
     const json=await res.json();
