@@ -158,7 +158,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
   <div class="wrap z1">
     <div class="tabs">
       <button class="tab-btn active" onclick="sw('dashboard')">📊 ダッシュボード</button>
-      <button class="tab-btn" onclick="sw('fund')">📈 VEX準備状況 【古市チーム】</button>
+      <button class="tab-btn" onclick="sw('fund')">📈 運用状況</button>
       <button class="tab-btn" onclick="sw('distribution')">💰 分配計算</button>
       <button class="tab-btn" onclick="sw('clients')">👥 クライアント</button>
       <button class="tab-btn" onclick="sw('vex')">🔢 報酬計算</button>
@@ -201,7 +201,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
     </div>
     <div id="tab-clients" class="tab-pane">
       <div class="tbl-card">
-        <div class="tbl-hdr"><div class="tbl-ttl">👥 クライアント情報（VEX準備状況 【古市チーム】）</div><div class="tbl-sub" id="cliCount">—</div></div>
+        <div class="tbl-hdr"><div class="tbl-ttl">👥 クライアント情報（運用状況）</div><div class="tbl-sub" id="cliCount">—</div></div>
         <table><thead><tr><th>顧客番号</th><th>名前</th><th>グループ</th><th>銀行残高</th><th>口座残高（主要）</th></tr></thead>
         <tbody id="cliTbody"><tr class="empty"><td colspan="5">データを読み込んでください</td></tr></tbody></table>
       </div>
@@ -401,7 +401,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
 
     </div>
-    <!-- 📈 VEX準備状況 【古市チーム】タブ（運営・リスク管理の可視化） -->
+    <!-- 📈 運用状況タブ（運営・リスク管理の可視化） -->
     <div id="tab-fund" class="tab-pane">
       <!-- サマリーカード -->
       <div class="stat-grid" id="fund-stat-grid" style="margin-bottom:22px">
@@ -923,7 +923,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <div>📊 <strong>売上シート</strong></div>
               <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">年間収支表</div>
               <div style="margin-top:6px">👥 <strong>クライアント情報</strong></div>
-              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">VEX準備状況 【古市チーム】シート</div>
+              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">運用状況シート</div>
               <div style="margin-top:6px">💳 <strong>支払いシート</strong></div>
               <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">1aFwtiDPD0VN64jeS48Wjvm9FmuealJyopGowM6-ouVM</div>
             </div>
@@ -939,7 +939,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 const SALES_ID='1wxPfkE7KeV20f1jXK1JBdjrdjSj9KIu2JVwORfKi-zw';
 const CLIENT_ID='1GsLDwa6Ac8rBZk0myprJ2H16FmPDHUbudCcS4S8JDdE';
 const PAYMENT_ID='1GBqb0mZNOIJUeHVA3lVTopSYLMJ_uWCjKCHPOm40iMA';
-const VEX_STATUS_ID='1_aNBFcrifMlyKnhEeEohmtCjmqCSZFn2LkizebQzmSw';
+const VEX_STATUS_ID='1ETrLuUn0jgTfZCpBDl_M8pQSAmsgyTgQKb5XTH2no1c';
 const SALES_SHEET='年間収支表';
 const CLIENT_SHEET='運用状況';
 const PAYMENT_SHEET='銀行送金';
@@ -1339,7 +1339,7 @@ function renderCurRatio(){
 
 function sw(name){
   const map={dashboard:'ダッシュボード',distribution:'分配計算',clients:'クライアント',
-             vex:'報酬計算',fund:'VEX準備状況 【古市チーム】',network:'紹介ネットワーク',
+             vex:'報酬計算',fund:'運用状況',network:'紹介ネットワーク',
              history:'清算履歴',payment:'支払い管理',vexstatus:'準備状況',settings:'設定'};
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.textContent.trim().includes(map[name]||name)));
   document.querySelectorAll('.tab-pane').forEach(el=>el.classList.remove('active'));
@@ -1598,7 +1598,7 @@ async function deleteBankEntry(){
 }
 
 // ================================================================
-// 📈 VEX準備状況 【古市チーム】タブ（運営・リスク管理の可視化）
+// 📈 運用状況タブ（運営・リスク管理の可視化）
 // ================================================================
 
 let fundChartInst=null, fundCumChartInst=null, simChartInst=null;
