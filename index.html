@@ -2226,14 +2226,15 @@ const GAS_URL = 'https://script.google.com/macros/s/AKfycbxOC23h189OZE6g28iddbiS
 async function gasGet(action) {
   const res = await fetch(`${GAS_URL}?action=${action}`);
   const d = await res.json();
-  return d.data || [];
+  return d;
 }
 
 async function gasPost(action, payload) {
-  await fetch(GAS_URL, {
+  const res = await fetch(GAS_URL, {
     method: 'POST',
     body: JSON.stringify({ action, payload }),
   });
+  return await res.json();
 }
 
 const NET_KEY = 'vex_network';
