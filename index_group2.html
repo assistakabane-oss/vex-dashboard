@@ -1033,6 +1033,7 @@ async function connect(){
     S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
     S.year=Math.max(...years);
     loadSaved();
+    netLoadRemote();
     hideLoad();
     document.getElementById('setup').style.display='none';
     document.getElementById('app').style.display='block';
