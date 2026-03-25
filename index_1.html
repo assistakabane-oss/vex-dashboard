@@ -2252,7 +2252,12 @@ async function netLoadRemote() {
   }
 }
 function netLoadLocal() {
-  try { return JSON.parse(localStorage.getItem(NET_KEY)||'[]'); } catch(e){ return []; }
+  try {
+    const raw = JSON.parse(localStorage.getItem(NET_KEY)||'[]');
+    if (raw && !Array.isArray(raw) && Array.isArray(raw.data)) return raw.data;
+    if (Array.isArray(raw)) return raw;
+    return [];
+  } catch(e){ return []; }
 }
 function netLoad() { return netLoadLocal(); }
 function netStore(arr) { localStorage.setItem(NET_KEY, JSON.stringify(arr)); }
