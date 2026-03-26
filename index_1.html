@@ -2243,16 +2243,14 @@ const NET_KEY = 'vex_network';
 
 // LocalStorageをキャッシュとして使い、GASと同期
 async function netLoadRemote() {
-  try {
-    const arr = JSON.parse(localStorage.getItem(NET_KEY) || '[]');
-    const local = netLoadLocal();
-    // リモートデータが空の場合はローカルを保持
-    const merged = (arr && arr.length > 0) ? arr : local;
-    if (merged.length > 0) localStorage.setItem(NET_KEY, JSON.stringify(merged));
-    return Promise.resolve(merged);
-  } catch(e) {
-    return Promise.resolve(netLoadLocal());
-  }
+  return new Promise(resolve => {
+    try {
+      const local = netLoadLocal();
+      // ローカルにデータがあればそれを使う
+      if (local.length > 0) { resolve(local); return; }
+      resolve([]);
+    } catch(e) { resolve([]); }
+  });
 }
 function netLoadLocal() {
   try {
