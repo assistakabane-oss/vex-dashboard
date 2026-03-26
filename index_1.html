@@ -1346,7 +1346,7 @@ function sw(name){
   const pane=document.getElementById(`tab-${name}`);
   if(pane) pane.classList.add('active');
   if(name==='fund') renderFundTab();
-  if(name==='network') { netLoadRemote().then(arr=>{ if(arr.length) renderNetworkTab(); }); renderNetworkTab(); }
+  if(name==='network') { renderNetworkTab(); netLoadRemote().then(arr=>{ renderNetworkTab(); }); }
   if(name==='history') { histLoadRemote().then(arr=>{ if(arr.length) renderHistoryTab(); }); renderHistoryTab(); }
   if(name==='payment') renderBankTab();
   if(name==='vexstatus') renderVexStatus();
