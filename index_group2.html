@@ -2222,7 +2222,6 @@ function showErr(m){const e=document.getElementById('serr');e.textContent=m;e.cl
 // 🌐 Google Apps Script Webアプリ URL（スプレッドシート保存用）
 // ================================================================
   const GAS_URL = 'https://script.google.com/macros/s/AKfycbwctxBizMZAo18VPf45qBD8QMufy40KiJOLVA1CdLycazYRHeQ2fsTDr0St7zdEcy2hMA/exec';
-const GAS_URL = GAS_URL;
 
 async function gasGet(action) {
   const res = await fetch(`${GAS_URL}?action=${action}`);
