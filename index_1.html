@@ -2254,10 +2254,12 @@ async function netLoadRemote() {
 }
 function netLoadLocal() {
   try {
-    const raw = JSON.parse(localStorage.getItem(NET_KEY)||'[]');
-    if (raw && !Array.isArray(raw) && Array.isArray(raw.data)) return raw.data;
-    if (Array.isArray(raw)) return raw;
-    return [];
+    const raw = JSON.parse(localStorage.getItem(NET_KEY) || '[]');
+    let arr = [];
+    if (Array.isArray(raw)) arr = raw;
+    else if (raw && Array.isArray(raw.data)) arr = raw.data;
+    // userフィールドがある有効なデータのみ返す
+    return arr.filter(r => r && r.user && r.user.trim() !== '');
   } catch(e){ return []; }
 }
 function netLoad() { return netLoadLocal(); }
