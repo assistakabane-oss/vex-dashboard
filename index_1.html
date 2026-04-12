@@ -12,7 +12,7 @@
   --bg:#080b12;--surface:#0e1117;--card:#131820;--card2:#181f2a;
   --border:#1e2738;--border2:#263044;
   --blue:#4a8cff;--blue-dim:rgba(74,140,255,.15);
-  --gold:#e8a84a;--gold-dim:rgba(232,168,74,.12);
+  --gold:#e8a84a;--gold-dim:rgba(232,168,74,.12);h
   --green:#34c78a;--red:#f05555;
   --text:#dde3f0;--muted:#596880;--dim:#8494aa;
   --r:10px;--r-sm:6px;
@@ -1137,7 +1137,7 @@ function selMo(m){S.month=m;renderMoPills();renderAll();}
 function renderStats(){
   const revs=S.members.map(m=>(m.months[S.year]||{})[S.month]||0);
   const grand=revs.reduce((a,b)=>a+b,0);
-  const yTotal=S.members.reduce((s,m)=>s+(m.totalProfit||0),0);
+  const yTotal=S.members.reduce((s,m)=>s+Object.values(m.months[S.year]||{}).reduce((a,b)=>a+b,0),0);
   const activeCount=S.members.filter(m=>((m.months[S.year]||{})[S.month]||0)>0).length;
   const avg=activeCount?grand/activeCount:0;
   // 今月の運営取り分合計（VEXルールで計算）
