@@ -1335,8 +1335,8 @@ function renderCurRatio(){
         <span style="font-family:var(--mono);font-size:11px;color:var(--gold)">¥${fmt(amt)}</span>
       </div>`;
     }).join('');
-}
-
+loadBankTransfers
+  
 function sw(name){
   const map={dashboard:'ダッシュボード',distribution:'分配計算',clients:'クライアント',
              vex:'報酬計算',fund:'運用状況',network:'紹介ネットワーク',
@@ -1368,39 +1368,44 @@ async function loadBankTransfers(){
   showLoad('銀行送金データを読み込み中...');
   try{
     // 各メンバーの個別シートから銀行口座情報を読み込む
-      const bankInfoMap={};
-      await Promise.allSettled(S.members.map(async (m)=>{
-              try{
-                        const vals=await sheetsAPI(CLIENT_ID,`${m.name}!A1:M10`);
-                        if(vals&&vals.length>=8) bankInfoMap[m.name]={bankName:(vals[1]||[])[8]||'',branchName:(vals[4]||[])[8]||'',accountNo:(vals[6]||[])[8]||'',referrer:(vals[1]||[])[2]||''};
-              }catch(e){}
-      }));
-        if(!S.bankData||!S.bankData.length) S.bankData=[];
-        const existing=new Set(S.bankData.map(r=>r.name));
-        S.members.forEach((m,i)=>{
-                if(existing.has(m.name)) return;
-                const vt=getMemberVexType(m.name);
-                const info=bankInfoMap[m.name]||{};
-                const rev=(m.months[S.year]||{})[S.month]||0;
-                if(!rev) return;
-                const sr=Math.round(rev*(vt==='own'?0.30:0.15));
-                const dr=Math.round(rev*(vt==='own'?0.15:0.10));
-                S.bankData.push({type:vt==='own'?'自己資金':'資金提供',name:m.name,bankName:info.bankName||'',branchName:info.branchName||'',accountType:'普通',accountNumber:info.accountNo||'',accountHolder:m.name,transferAmount:sr,rewardAmount:sr+dr,selfReward:sr,directReward:dr,indirectReward:0,transferDate:'',referrer:info.referrer||'',status:'未送金',note:'',rowIndex:i});
-  });
+      async function loadBankTransfers(){
+          showLoad('銀行送金データを読み込み中...');
+          try{
+                const res=await fetch(GAS_URL+'?action=getBankTransfers');
+                const json=await res.json();
+                if(json.success&&json.data){
+                        S.bankData=json.data.map(r=>({
+                                  rowIndex:r.rowIndex,
+                                  type:r.type||'資金提供',
+          name:r.name||'',
+          bankName:r.bankName||'',
+              branchName:r.branchName||'',
+          accountType:r.accountType||'普通',
+                                  accountNumber:r.accountNumber||'',
+            accountHolder:r.accountHolder||'',
+                                  transferAmount:parseFloat(r.transferAmount)||0,
+          rewardAmount:parseFloat(r.rewardAmount)||0,
+          selfReward:parseFloat(r.selfReward)||0,
+          directReward:parseFloat(r.directReward)||0,
+          indirectReward:parseFloat(r.indirectReward)||0,
+                             transferDate:r.transferDate?String(r.transferDate).substring(0,10):'',
+                                  referrer:r.referrer||'',
+                                  status:r.status||'未送金',
+                                  note:r.note||''
+                        }));
+  } else {
+        S.bankData=[];
+  }
       const now=new Date().toLocaleString('ja-JP');
       const lbl=document.getElementById('payment-last-load');
       if(lbl) lbl.textContent=`最終読込: ${now} (${S.bankData.length}件)`;
       renderBankTab();
-  }catch(e){
-                                 alert('読み込みエラー: '+e.message);
-      }
-  hideLoad();
-}
-
-function renderBankTab(){
-  const search=(document.getElementById('payment-search')?.value||'').toLowerCase();
-  const typeFilter=document.getElementById('bank-filter-type')?.value||'';
-  const statusFilter=document.getElementById('bank-filter-status')?.value||'';
+          }catch(e){
+        alert('読み込みエラー: '+e.message);
+  }
+    hideLoad();
+  }
+  t statusFilter=document.getElementById('bank-filter-status')?.value||'';
 
   const filtered=(S.bankData||[]).filter(r=>{
     if(search&&!(r.name||'').toLowerCase().includes(search)) return false;
