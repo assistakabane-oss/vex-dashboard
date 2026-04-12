@@ -12,7 +12,7 @@
   --bg:#080b12;--surface:#0e1117;--card:#131820;--card2:#181f2a;
   --border:#1e2738;--border2:#263044;
   --blue:#4a8cff;--blue-dim:rgba(74,140,255,.15);
-  --gold:#e8a84a;--gold-dim:rgba(232,168,74,.12);h
+  --gold:#e8a84a;--gold-dim:rgba(232,168,74,.12);hh
   --green:#34c78a;--red:#f05555;
   --text:#dde3f0;--muted:#596880;--dim:#8494aa;
   --r:10px;--r-sm:6px;
@@ -1193,7 +1193,7 @@ function renderMainTable(){
     return`<tr>
       <td><div class="mc"><div class="av" style="background:${col}22;color:${col}">${m.name[0]}</div>${m.name}</div></td>
       <td class="mn">¥${fmt(rev)}</td>
-      <td class="mn">¥${fmt(m.totalProfit||0)}</td>
+      <td class="mn">¥${fmt(Object.values(m.months[S.year]||{}).reduce((a,b)=>a+b,0))}</td>
       <td><span class="rb" style="background:${type==='own'?'var(--blue-dim)':'var(--gold-dim)'};color:${tc}">${typeLbl}</span></td>
       <td class="gd">¥${fmt(userAmt)}</td>
       <td><div class="mb"><div class="mb-tr"><div class="mb-fl" style="width:${bw}%;background:${col}"></div></div><span class="mb-pc">${bw}%</span></div></td>
