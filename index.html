@@ -625,6 +625,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div class="toolbar" style="margin-bottom:18px">
         <button class="btn btn-primary btn-sm" onclick="loadBankTransfers()">🔄 データを読み込む</button>
         <button class="btn btn-secondary btn-sm" onclick="openBankForm()">➕ 新規追加</button>
+            <button class="btn btn-sm" style="background:var(--green);color:#fff" onclick="exportBankExcel()">📥 CSV出力</button>
         <div style="font-size:12px;color:var(--muted);margin-left:8px" id="payment-last-load"></div>
         <div class="ml-auto"></div>
         <select class="inp" id="bank-filter-type" onchange="renderBankTab()" style="width:110px;padding:6px 10px;font-size:12px">
@@ -647,7 +648,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <div class="stat-card"><div class="stat-lbl">未送金</div><div class="stat-val" id="pay-count-pending" style="color:var(--gold)">0名</div></div>
         <div class="stat-card"><div class="stat-lbl">送金済み</div><div class="stat-val" id="pay-count-done" style="color:var(--green)">0名</div></div>
         <div class="stat-card"><div class="stat-lbl">振込合計</div><div class="stat-val" id="pay-total" style="color:var(--text)">¥0</div></div>
-        <div class="stat-card"><div class="stat-lbl">報酬合計</div><div class="stat-val" id="pay-reward-total" style="color:var(--gold)">¥0</div></div>
+        <div class="stat-card"><div class="stat-lbl">報酬合計</div><div class="stat-val" id="pay-reward-total" title="売上合計" style="color:var(--gold)">¥0</div></div>
       </div>
 
       <!-- 銀行送金一覧テーブル -->
@@ -663,7 +664,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <th>名前</th>
               <th>銀行情報</th>
               <th>振込金額</th>
-              <th>実際の報酬額</th>
+              <th>売上</th>
               <th style="background:rgba(138,100,255,.08);color:#b49dff">本人報酬</th>
               <th style="background:rgba(52,199,138,.08);color:#34c78a">直紹介</th>
               <th style="background:rgba(232,168,74,.08);color:#e8a84a">間接紹介</th>
@@ -750,6 +751,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <label class="lbl">実際の報酬額</label>
             <input class="inp" id="bank-reward-amount" type="number" placeholder="例：110000" oninput="updateBankRates()"/>
           </div>
+        <div class="form-group"><label>PC代（初回¥21,000 / 2回目以降¥0）</label><input class="inp" id="bank-pc-fee" type="number" placeholder="0" min="0" step="1000" value="0"></div>
           <!-- 報酬内訳（自動計算） -->
           <div style="grid-column:1/-1;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px">
             <div style="font-size:11px;color:var(--muted);margin-bottom:10px;font-weight:600">分配報酬内訳（自動計算）</div>
@@ -1368,8 +1370,8 @@ async function loadBankTransfers(){
   showLoad('銀行送金データを読み込み中...');
   try{
     const json=await gasGet('getBankTransfers');
-    if(json.success){
-      S.bankData=json.data||[];
+    if(json.success !== false){
+      S.bankData=json.data||json||[];
       const now=new Date().toLocaleString('ja-JP');
       const lbl=document.getElementById('payment-last-load');
       if(lbl) lbl.textContent=`最終読込: ${now} (${S.bankData.length}件)`;
@@ -1420,10 +1422,10 @@ function renderBankTab(){
       return`<tr>
         <td><span class="rb" style="background:${tc}22;color:${tc};font-size:11px">${r.type||'—'}</span></td>
         <td style="font-weight:500">${r.name||'—'}</td>
-        <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:normal;line-height:1.5">${bankShort||'—'}<br><span style="color:var(--dim)">${r.accountHolder||''}</span></td>
-        <td class="mn">¥${fmt(parseFloat(r.transferAmount)||0)}</td>
-        <td class="mn" style="color:var(--gold)">¥${fmt(parseFloat(r.rewardAmount)||0)}</td>
-        <td class="mn" style="color:#b49dff;font-size:12px">¥${fmt(parseFloat(r.selfReward)||0)}</td>
+        <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:normal;line-height:1.5">${bankShort||'—'}<br><span style="color:var(--dim)">${r.accountHolder||''}</span></td>        <td class="mn" style="color:var(--gold)">¥${fmt(parseFloat(r.rewardAmount)||0)}</td>
+        <td class="mn" title="本人報酬" style="color:#b49dff;font-size:12px">¥${fmt(parseFloat(r.selfReward)||0)}</td>
+      <td class="mn" style="color:var(--red);font-size:12px" title="PC代">¥${fmt(parseFloat(r.pcFee)||0)}</td>
+      <td class="mn" style="color:#4fc3f7;font-weight:600" title="振込金額=本人報酬-PC代+2000">¥${fmt((parseFloat(r.selfReward)||0)-(parseFloat(r.pcFee)||0)+2000)}</td>
         <td class="mn" style="color:var(--green);font-size:12px">¥${fmt(parseFloat(r.directReward)||0)}</td>
         <td class="mn" style="color:var(--gold);font-size:12px">¥${fmt(parseFloat(r.indirectReward)||0)}</td>
         <td style="font-size:12px;color:var(--muted)">${r.transferDate||'—'}</td>
@@ -1496,7 +1498,6 @@ function openBankForm(){
   document.getElementById('bank-form-msg').textContent='';
   updateBankRates();
   document.getElementById('bank-modal').classList.remove('hidden');
-  document.getElementById('bank-modal').style.display='flex';
 }
 
 function editBankEntry(rowIndex){
@@ -1512,6 +1513,8 @@ function editBankEntry(rowIndex){
   document.getElementById('bank-account-type').value=r.accountType||'普通';
   document.getElementById('bank-account-number').value=r.accountNumber||'';
   document.getElementById('bank-holder').value=r.accountHolder||'';
+  document.getElementById('bank-pc-fee').value=r.pcFee||0;
+  document.getElementById('bank-pc-fee') && (document.getElementById('bank-pc-fee').value=r.pcFee||0);
   document.getElementById('bank-transfer-amount').value=r.transferAmount||'';
   document.getElementById('bank-reward-amount').value=r.rewardAmount||'';
   document.getElementById('bank-date').value=r.transferDate||'';
@@ -2222,6 +2225,28 @@ function showErr(m){const e=document.getElementById('serr');e.textContent=m;e.cl
 // ================================================================
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbxOC23h189OZE6g28iddbiSUY17zQCyJSWqgi-wsZRjohSONoDUxgRa1ipYraXZJ3tt/exec';
 
+function exportBankExcel(){
+  const data=S.bankData||[];
+  if(!data.length){alert('データがありません。先に読み込んでください。');return;}
+  // CSV形式でダウンロード（Excelで開ける）
+  const headers=['名前','タイプ','銀行名','支店名','口座種別','口座番号','口座名義','売上','本人報酬','PC代','振込金額（自動）','直紹介報酬','間接紹介報酬','振込予定日','紹介者','ステータス','備考'];
+  const rows=data.map(r=>{
+    const self=parseFloat(r.selfReward)||0;
+    const pc=parseFloat(r.pcFee)||0;
+    const transfer=self-pc+2000;
+    return [r.name,r.type,r.bankName,r.branchName,r.accountType,r.accountNumber,r.accountHolder,
+      r.rewardAmount,self,pc,transfer,r.directReward,r.indirectReward,
+      r.transferDate,r.referrer,r.status,r.note||''];
+  });
+  const csv=[headers,...rows].map(r=>r.map(v=>'"'+(v||'').toString().replace(/"/g,'""')+'"').join(',')).join('
+');
+  const bom='﻿';
+  const blob=new Blob([bom+csv],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='VEX_振込一覧_'+new Date().toLocaleDateString('ja-JP').replace(///g,'')+'.csv';
+  a.click();
+}
 async function gasGet(action) {
   const res = await fetch(`${GAS_URL}?action=${action}`);
   const d = await res.json();
