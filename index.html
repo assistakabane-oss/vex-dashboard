@@ -2241,6 +2241,58 @@ function exportBankCSV(){
   a.download="VEX_"+new Date().toLocaleDateString("ja-JP").replace(/\//g,"")+".csv";
   a.click();
 }
+async function vexBulkRegisterToPayment(){
+  if(!vexRows||!vexRows.length){alert("No data");return;}
+  var rows=vexRows.filter(function(r){return r.profit>0;});
+  if(!rows.length){alert("No profit data");return;}
+  var transferDate=document.getElementById("vex-batch-month")?.value||"";
+  var payDate="";
+  if(transferDate){
+    var parts=transferDate.split("-");
+    var y=parseInt(parts[0]),m=parseInt(parts[1]);
+    var py=m===12?y+1:y,pm=(m%12)+1;
+    payDate=py+"-"+(pm<10?"0"+pm:""+pm)+"-15";
+  }
+  var msg="["+rows.length+"] 件を支払い管理に登録します。\n\n";
+  msg+="振込予定日: "+(payDate||"未設定")+"\n";
+  msg+="\nPC代対象者(初回)\u306f手動で編集してください。\n\n登録しますか？";
+  if(!confirm(msg))return;
+  showLoad("登録中...");
+  var ok=0,fail=0;
+  for(var i=0;i<rows.length;i++){
+    var row=rows[i];
+    var r=calcVex(row.profit,row.type);
+    var cl=S.clients[row["名前"]]||{};
+    var transfer=r.user+2000;
+    var payload={
+      action:"saveBankTransfer",
+      name:row["名前"],
+      type:row.type==="own"?"自己資金":"資金提供",
+      bankName:cl.bank||"",
+      branchName:cl.branch||"",
+      accountType:cl.accountType||"普通",
+      accountNumber:cl.accountNumber||"",
+      accountHolder:cl.accountHolder||"",
+      rewardAmount:row.profit,
+      selfReward:r.user,
+      directReward:r.refDirect,
+      indirectReward:r.refIndirect,
+      pcFee:0,
+      transferAmount:transfer,
+      transferDate:payDate,
+      referrer:row["参照1"]||"",
+      status:"未送金",
+      note:""
+    };
+    try{
+      var res=await gasPost(payload);
+      if(res.success)ok++; else fail++;
+    }catch(e){fail++;}
+  }
+  hideLoad();
+  alert("登録完了: "+ok+"件 / 失敗: "+fail+"件");
+  if(ok>0){sw("payment");loadBankTransfers();}
+}
 async function gasGet(action) {
   const res = await fetch(`${GAS_URL}?action=${action}`);
   const d = await res.json();
