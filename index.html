@@ -214,6 +214,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <button class="pill" id="vex-tab-batch" onclick="vexSwitchTab('batch')" style="border-radius:var(--r-sm)">👥 一括計算</button>
         <button class="pill" id="vex-tab-schedule" onclick="vexSwitchTab('schedule')" style="border-radius:var(--r-sm)">📅 清算スケジュール</button>
         <button class="pill" id="vex-tab-rule" onclick="vexSwitchTab('rule')" style="border-radius:var(--r-sm)">📐 分配ルール</button>
+        <button class="pill" id="vex-tab-statement" onclick="vexSwitchTab('statement')" style="border-radius:var(--r-sm)">🧾 報酬明細</button>
       </div>
 
       <!-- ① 単独計算 -->
@@ -223,26 +224,35 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <div class="st">📋 利用者情報を入力</div>
             <div class="fg">
               <label class="lbl">利用者名</label>
-              <input class="inp" id="vex-name" placeholder="例：田中太郎" oninput="vexCalc()"/>
+              <input class="inp" id="vex-name" placeholder="例：田中太郎" list="stmt-user-list" oninput="vexNameChanged()"/>
+              <p class="help">登録済みのユーザー名を入れると、設定タブのユーザー別報酬率が自動で適用されます</p>
             </div>
             <div class="fg">
               <label class="lbl">資金タイプ</label>
               <div style="display:flex;gap:10px;margin-top:4px">
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 16px;border:1px solid var(--border);border-radius:var(--r-sm);flex:1;transition:border .2s" id="lbl-own">
-                  <input type="radio" name="vex-type" id="vex-own" value="own" onchange="vexCalc()" style="width:auto;accent-color:var(--blue)"/>
+                  <input type="radio" name="vex-type" id="vex-own" value="own" onchange="document.getElementById('vex-ownpct').value=100;vexCalc()" style="width:auto;accent-color:var(--blue)"/>
                   <div>
                     <div style="font-size:13px;font-weight:500">自己資金</div>
-                    <div style="font-size:11px;color:var(--muted)">ユーザー取り分 30%</div>
+                    <div style="font-size:11px;color:var(--muted)" id="lbl-own-rate">ユーザー取り分 30%</div>
                   </div>
                 </label>
                 <label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding:10px 16px;border:1px solid var(--border);border-radius:var(--r-sm);flex:1;transition:border .2s" id="lbl-fund">
-                  <input type="radio" name="vex-type" id="vex-fund" value="fund" onchange="vexCalc()" style="width:auto;accent-color:var(--gold)"/>
+                  <input type="radio" name="vex-type" id="vex-fund" value="fund" onchange="document.getElementById('vex-ownpct').value=0;vexCalc()" style="width:auto;accent-color:var(--gold)"/>
                   <div>
                     <div style="font-size:13px;font-weight:500">資金提供</div>
-                    <div style="font-size:11px;color:var(--muted)">ユーザー取り分 15%</div>
+                    <div style="font-size:11px;color:var(--muted)" id="lbl-fund-rate">ユーザー取り分 15%</div>
                   </div>
                 </label>
               </div>
+            </div>
+            <div class="fg">
+              <label class="lbl">自己資金の割合（%）</label>
+              <div style="display:flex;gap:10px;align-items:center">
+                <input class="inp" id="vex-ownpct" type="range" min="0" max="100" step="5" value="100" oninput="document.getElementById('vex-ownpct-num').value=this.value;vexCalc()" style="flex:1;padding:0;accent-color:var(--blue)"/>
+                <input class="inp" id="vex-ownpct-num" type="number" min="0" max="100" value="100" oninput="document.getElementById('vex-ownpct').value=this.value;vexCalc()" style="width:80px;font-family:var(--mono)"/>
+              </div>
+              <p class="help">貸付（資金提供）と自己資金が混ざる場合に指定。例：60 → 自己資金60%・貸付40%で加重平均</p>
             </div>
             <div class="fg">
               <label class="lbl">月次利益（円）</label>
@@ -288,7 +298,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div style="overflow-x:auto">
             <table style="min-width:1100px">
               <thead><tr>
-                <th>利用者名</th><th>資金タイプ</th><th>月次利益</th>
+                <th>利用者名</th><th>自己資金比率 / 適用率</th><th>月次利益</th>
                 <th style="color:#a5c4ff">ユーザー手取り</th>
                 <th style="color:#a5c4ff">直紹介者</th><th style="color:#a5c4ff">直紹介報酬</th>
                 <th style="color:#a5c4ff">間接紹介者</th><th style="color:#a5c4ff">間接紹介報酬</th>
@@ -354,6 +364,73 @@ tr:hover td{background:rgba(255,255,255,.015)}
       </div>
 
       <!-- ④ 分配ルール -->
+      <!-- 🧾 報酬明細 -->
+      <div id="vex-pane-statement" style="display:none">
+        <div style="display:grid;grid-template-columns:340px 1fr;gap:20px;align-items:start">
+          <div class="sc">
+            <div class="st">🧾 報酬明細を作成</div>
+            <div class="fg">
+              <label class="lbl">利用者</label>
+              <input class="inp" id="stmt-user" list="stmt-user-list" placeholder="名前を入力・選択" oninput="stmtUserChanged()"/>
+              <datalist id="stmt-user-list"></datalist>
+            </div>
+            <div class="fg">
+              <label class="lbl">明細の種類</label>
+              <select class="inp" id="stmt-mode" onchange="stmtModeChanged();stmtRender()" style="font-family:var(--sans)">
+                <option value="quarter">四半期清算（売上シートの3ヶ月分）</option>
+                <option value="month">単月（売上シートの値）</option>
+                <option value="manual">単月（利益を手入力）</option>
+              </select>
+            </div>
+            <div class="fg stmt-quarter" style="display:flex;gap:8px">
+              <div style="flex:1"><label class="lbl">年</label><input class="inp" id="stmt-year" type="number" oninput="stmtRender()" style="font-family:var(--mono)"/></div>
+              <div style="flex:1"><label class="lbl">締め月</label>
+                <select class="inp" id="stmt-qmonth" onchange="stmtRender()" style="font-family:var(--sans)">
+                  <option value="3">3月末締め</option><option value="6">6月末締め</option><option value="9">9月末締め</option><option value="12">12月末締め</option>
+                </select></div>
+            </div>
+            <div class="fg stmt-month" style="display:none">
+              <label class="lbl">対象月</label>
+              <input class="inp" id="stmt-month" type="month" oninput="stmtRender()" style="font-family:var(--mono)"/>
+            </div>
+            <div class="fg stmt-manual" style="display:none">
+              <label class="lbl">運用利益（円）</label>
+              <input class="inp" id="stmt-profit" type="number" placeholder="0" oninput="stmtRender()" style="font-family:var(--mono)"/>
+            </div>
+            <div class="fg">
+              <label class="lbl">自己資金の割合（%）</label>
+              <input class="inp" id="stmt-ownpct" type="number" min="0" max="100" oninput="stmtRender()" style="font-family:var(--mono)"/>
+              <p class="help">利用者を選ぶと設定タブの値が入ります。個別率が設定されている人は個別率が優先されます</p>
+            </div>
+            <div class="fg" style="display:flex;gap:8px">
+              <div style="flex:1.3"><label class="lbl">調整項目（任意）</label><input class="inp" id="stmt-adj-label" placeholder="例：PC代 / 振込手数料" oninput="stmtRender()"/></div>
+              <div style="flex:1"><label class="lbl">金額（控除は−）</label><input class="inp" id="stmt-adj" type="number" placeholder="0" oninput="stmtRender()" style="font-family:var(--mono)"/></div>
+            </div>
+            <div class="fg" style="display:flex;gap:8px">
+              <div style="flex:1"><label class="lbl">直紹介者（任意）</label><input class="inp" id="stmt-ref1" oninput="stmtRender()"/></div>
+              <div style="flex:1"><label class="lbl">間接紹介者（任意）</label><input class="inp" id="stmt-ref2" oninput="stmtRender()"/></div>
+            </div>
+            <div class="fg">
+              <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--dim);cursor:pointer"><input type="checkbox" id="stmt-breakdown" onchange="stmtSaveSettings();stmtRender()" style="width:auto"/>配分内訳（紹介・運営・リスク管理）も載せる</label>
+            </div>
+            <div class="fg">
+              <label class="lbl">発行者名</label>
+              <input class="inp" id="stmt-issuer" oninput="stmtSaveSettings();stmtRender()"/>
+            </div>
+            <div class="fg">
+              <label class="lbl">備考（明細の下部に表示）</label>
+              <textarea class="inp" id="stmt-note" rows="3" oninput="stmtSaveSettings();stmtRender()" style="resize:vertical;font-family:var(--sans)"></textarea>
+            </div>
+            <button class="btn btn-primary btn-full" onclick="stmtPrint()">🖨️ 印刷 / PDFで保存</button>
+            <p class="help" style="margin-top:8px">印刷画面で「送信先：PDFに保存」を選ぶとPDFになります</p>
+          </div>
+          <div class="sc" style="padding:12px">
+            <div class="st" style="margin-bottom:10px">👁️ プレビュー</div>
+            <div id="stmt-preview"></div>
+          </div>
+        </div>
+      </div>
+
       <div id="vex-pane-rule" style="display:none">
         <div class="sc">
           <div class="st">📐 VEX 分配ルール（売上100%の内訳）</div>
@@ -434,7 +511,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           </div>
         </div>
         <table>
-          <thead><tr><th>月</th><th>月次合計売上</th><th style="color:var(--green)">リスク管理（50%）</th><th style="color:var(--gold)">運営（自己資金5% / 資金提供25%）</th><th>リスク管理 累積</th><th>運営 累積</th></tr></thead>
+          <thead><tr><th>月</th><th>月次合計売上</th><th style="color:var(--green)">リスク管理（50%）</th><th style="color:var(--gold)">運営（自己資金5% / 資金提供25%・設定により変動）</th><th>リスク管理 累積</th><th>運営 累積</th></tr></thead>
           <tbody id="fund-tbody"></tbody>
         </table>
       </div>
@@ -568,14 +645,15 @@ tr:hover td{background:rgba(255,255,255,.015)}
             </div>
             <div class="fg">
               <label class="lbl">利用者名</label>
-              <input class="inp" id="hist-user" placeholder="例：田中太郎" list="hist-user-list"/>
+              <input class="inp" id="hist-user" placeholder="例：田中太郎" list="hist-user-list" oninput="histCalcPreview()"/>
               <datalist id="hist-user-list"></datalist>
             </div>
             <div class="fg">
               <label class="lbl">資金タイプ</label>
-              <select class="inp" id="hist-type" style="font-family:var(--sans)">
-                <option value="own">自己資金（30%）</option>
-                <option value="fund">資金提供（15%）</option>
+              <select class="inp" id="hist-type" style="font-family:var(--sans)" onchange="histCalcPreview()">
+                <option value="auto">ユーザー設定に従う（設定タブ）</option>
+                <option value="own">自己資金プラン</option>
+                <option value="fund">資金提供プラン</option>
               </select>
             </div>
             <div class="fg">
@@ -859,34 +937,13 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <div class="sc">
           <div class="st">🔢 VEX 分配率設定（自動判定）</div>
           <p style="font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:16px">
-            クライアント情報の「グループ」欄に基づいて自動で分配率が決まります。<br>
-            手動で上書きする場合のみ下記で変更してください。
+            基本の2プランです。数値を変更すると全体の計算に反映されます（このブラウザに保存）。<br>
+            ユーザーごとの比率・個別率は下の「👤 ユーザー別 報酬率」で設定します。
           </p>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-            <div style="background:var(--blue-dim);border:1px solid rgba(74,140,255,.3);border-radius:var(--r);padding:16px">
-              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--blue);margin-bottom:12px">自己資金（グループ: 自己資金）</div>
-              <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">ユーザー</span><span class="rb">30%</span></div>
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">直紹介</span><span class="rb">10%</span></div>
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">間接紹介</span><span class="rb">5%</span></div>
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">運営</span><span class="rb">5%</span></div>
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">リスク管理</span><span class="rb">50%</span></div>
-              </div>
-            </div>
-            <div style="background:var(--gold-dim);border:1px solid rgba(232,168,74,.3);border-radius:var(--r);padding:16px">
-              <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--gold);margin-bottom:12px">資金提供（グループ: 空欄）</div>
-              <div style="display:flex;flex-direction:column;gap:8px;font-size:13px">
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">ユーザー</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">15%</span></div>
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">直紹介</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">5%</span></div>
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">間接紹介</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">5%</span></div>
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">運営</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">25%</span></div>
-                <div style="display:flex;justify-content:space-between"><span style="color:var(--dim)">リスク管理</span><span class="rb" style="background:var(--gold-dim);color:var(--gold)">50%</span></div>
-              </div>
-            </div>
-          </div>
+          <div id="plan-editor" style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:12px"></div>
+          <div style="display:flex;justify-content:flex-end;margin-bottom:16px"><button class="btn btn-secondary btn-sm" onclick="resetPlans()">↺ 初期値に戻す</button></div>
           <div class="alert alert-info" style="font-size:12.5px;line-height:1.8">
-            📌 クライアント情報を読み込むと「グループ」欄を自動判定します。<br>
-            　「自己資金」→ 30%プラン / 空欄 → 15%プラン（資金提供）
+            📌 優先順位：① ユーザーの個別率 → ② ユーザーの自己資金比率（2プランを加重平均）→ ③ シートの「グループ」欄（自己資金=100% / 空欄=0%）
           </div>
         </div>
 
@@ -931,10 +988,388 @@ tr:hover td{background:rgba(255,255,255,.015)}
           </div>
         </div>
       </div>
+      <!-- 👤 ユーザー別 報酬率 -->
+      <div class="sc" style="margin-top:20px">
+        <div class="st">👤 ユーザー別 報酬率</div>
+        <p style="font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:12px">
+          <strong>自己資金比率</strong>：貸付（資金提供）と自己資金が混ざる人は割合を入力 → 2プランを加重平均します（例：60% → ユーザー率 30%×0.6 + 15%×0.4 = 24%）。空欄ならシートの「グループ」欄に従います。<br>
+          <strong>個別率</strong>：特定の人だけ率が違う場合にチェックし、5項目を直接入力します（比率より優先）。
+        </p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
+          <input class="inp" id="ur-search" placeholder="🔍 名前で絞り込み" oninput="renderUserRateTable()" style="width:180px;padding:6px 10px;font-size:12px"/>
+          <label style="font-size:12px;color:var(--dim);display:flex;gap:6px;align-items:center;cursor:pointer"><input type="checkbox" id="ur-only-set" onchange="renderUserRateTable()" style="width:auto"/>設定ありのみ</label>
+          <input class="inp" id="ur-new" placeholder="シートにない名前を追加" style="width:180px;padding:6px 10px;font-size:12px"/>
+          <button class="btn btn-secondary btn-sm" onclick="addUserRateName()">＋ 追加</button>
+          <div class="ml-auto" style="margin-left:auto"></div>
+          <button class="btn btn-secondary btn-sm" onclick="exportRateSettings()">📤 設定を書き出し</button>
+          <label class="btn btn-secondary btn-sm" style="cursor:pointer">📥 設定を読み込み<input type="file" accept=".json,application/json" onchange="importRateSettings(this.files[0]);this.value=''" style="display:none"/></label>
+          <span class="tbl-sub" id="ur-count"></span>
+        </div>
+        <div id="ur-msg" class="alert hidden" style="margin-bottom:10px"></div>
+        <div style="overflow-x:auto">
+          <table style="min-width:900px">
+            <thead><tr><th>名前</th><th>グループ（シート）</th><th>自己資金比率</th><th>区分</th><th>適用率（ユーザー / 直紹介 / 間接 / 運営 / リスク）</th><th></th></tr></thead>
+            <tbody id="ur-tbody"><tr class="empty"><td colspan="6">クライアント情報を読み込むと一覧が表示されます</td></tr></tbody>
+          </table>
+        </div>
+        <p class="help" style="margin-top:10px">⚠️ この設定はこのブラウザに保存されます。別のPCで使う場合や念のためのバックアップには「設定を書き出し」→ 別PCで「設定を読み込み」を使ってください。</p>
+      </div>
     </div>
   </div>
 </div>
 <div id="loading" class="hidden"><div class="sp"></div><div class="lmsg" id="lmsg">読み込み中...</div></div>
+<script>
+// ================================================================
+// 🔧 報酬率エンジン（プラン設定・ユーザー別設定・混合比率）
+//   - 基本プラン（自己資金 / 資金提供）は設定タブで編集可
+//   - ユーザーごとに「自己資金比率」を設定 → 2プランを加重平均
+//   - ユーザーごとに「個別率」を設定 → その率を最優先で使用
+//   保存先: このブラウザ（localStorage）。JSONで書き出し/読み込み可
+// ================================================================
+const RATE_KEYS = ['user','ref1','ref2','ops','risk'];
+const RATE_NAMES = {user:'ユーザー',ref1:'直紹介',ref2:'間接紹介',ops:'運営',risk:'リスク管理'};
+const DEFAULT_PLANS = {
+  own:  { user:0.30, ref1:0.10, ref2:0.05, ops:0.05, risk:0.50 },
+  fund: { user:0.15, ref1:0.05, ref2:0.05, ops:0.25, risk:0.50 }
+};
+const PLAN_KEY='vex_rate_plans', USER_RATE_KEY='vex_user_rates', STMT_KEY='vex_stmt_settings';
+function lsGet(k,def){ try{ const v=localStorage.getItem(k); return v?JSON.parse(v):def; }catch(e){ return def; } }
+function lsSet(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)); }catch(e){} }
+let RATE_PLANS = lsGet(PLAN_KEY, null) || JSON.parse(JSON.stringify(DEFAULT_PLANS));
+let USER_RATES = lsGet(USER_RATE_KEY, {}) || {};   // { 名前: { ownPct: 0-100|null, custom: {user,ref1,...}|null } }
+
+const r6 = x => Math.round(x*1e6)/1e6;
+const pctTxt = x => (+(x*100).toFixed(2)) + '%';
+function escH(s){ return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function rateSum(r){ return RATE_KEYS.reduce((s,k)=>s+(+r[k]||0),0); }
+
+// シートの「グループ」欄から既定の自己資金比率
+function groupOwnPct(name){
+  const c = (typeof S!=='undefined' && S.clients) ? S.clients[name] : null;
+  return (c && (c.group||'').trim()==='自己資金') ? 100 : 0;
+}
+function getOwnPct(name){
+  const u = USER_RATES[name];
+  if (u && u.ownPct!==null && u.ownPct!==undefined && u.ownPct!=='') return Math.max(0,Math.min(100,+u.ownPct));
+  return groupOwnPct(name);
+}
+function blendRates(ownPct){
+  const p = Math.max(0,Math.min(100,+ownPct||0))/100, o=RATE_PLANS.own, f=RATE_PLANS.fund, out={};
+  RATE_KEYS.forEach(k=> out[k]=r6(o[k]*p + f[k]*(1-p)));
+  return out;
+}
+// 名前から適用率を取得（ownPctOverride を渡すとその比率で計算。個別率は常に優先）
+function getRates(name, ownPctOverride){
+  const u = name ? USER_RATES[name] : null;
+  if (u && u.custom) return { ...u.custom, _src:'custom', ownPct:getOwnPct(name) };
+  const pct = (ownPctOverride!==undefined && ownPctOverride!==null && ownPctOverride!=='') ? Math.max(0,Math.min(100,+ownPctOverride)) : getOwnPct(name);
+  return { ...blendRates(pct), _src: pct>=100?'own':pct<=0?'fund':'mix', ownPct:pct };
+}
+function rateLabel(r){
+  if (!r) return '—';
+  if (r._src==='custom') return '個別設定';
+  if (r._src==='own') return '自己資金';
+  if (r._src==='fund') return '資金提供';
+  return `混合（自己${+r.ownPct.toFixed(1)}%）`;
+}
+function rateColor(r){
+  if (!r) return 'var(--muted)';
+  return r._src==='custom' ? '#a855f7' : r._src==='own' ? 'var(--blue)' : r._src==='fund' ? 'var(--gold)' : 'var(--green)';
+}
+function rateBadge(r, withUser=true){
+  const c = rateColor(r);
+  return `<span class="rb" style="background:${c}22;color:${c}">${rateLabel(r)}${withUser?' '+pctTxt(r.user):''}</span>`;
+}
+function allKnownNames(){
+  const s = new Set();
+  try { Object.keys(S.clients||{}).forEach(n=>s.add(n)); (S.members||[]).forEach(m=>s.add(m.name)); } catch(e){}
+  Object.keys(USER_RATES).forEach(n=>s.add(n));
+  return [...s].filter(Boolean).sort((a,b)=>a.localeCompare(b,'ja'));
+}
+function saveUserRates(){ lsSet(USER_RATE_KEY, USER_RATES); }
+function savePlans(){ lsSet(PLAN_KEY, RATE_PLANS); }
+function refreshAfterRateChange(){
+  try { renderAll(); } catch(e){}
+  try { renderVexBatch(); } catch(e){}
+  try { vexCalc(); } catch(e){}
+  try { renderPlanLabels(); } catch(e){}
+}
+
+// ---------------- 設定タブ：基本プラン編集 ----------------
+function renderPlanEditor(){
+  const el = document.getElementById('plan-editor'); if(!el) return;
+  const box = (key, title, col, bg) => {
+    const p = RATE_PLANS[key], sum = rateSum(p);
+    const ok = Math.abs(sum-1)<0.0001;
+    return `<div style="background:${bg};border:1px solid ${col}55;border-radius:var(--r);padding:16px">
+      <div style="font-size:11px;font-weight:600;letter-spacing:.1em;color:${col};margin-bottom:12px">${title}</div>
+      ${RATE_KEYS.map(k=>`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;font-size:13px">
+        <span style="color:var(--dim)">${RATE_NAMES[k]}</span>
+        <span><input type="number" step="0.1" min="0" max="100" value="${+(p[k]*100).toFixed(2)}" onchange="updPlan('${key}','${k}',this.value)" class="inp" style="width:72px;padding:4px 8px;font-size:12px;text-align:right;font-family:var(--mono)"/> %</span>
+      </div>`).join('')}
+      <div style="font-size:11.5px;margin-top:8px;color:${ok?'var(--green)':'var(--red)'}">合計 ${+(sum*100).toFixed(2)}% ${ok?'✓':'— 100%にしてください'}</div>
+    </div>`;
+  };
+  el.innerHTML = box('own','自己資金プラン（グループ: 自己資金）','var(--blue)','var(--blue-dim)')
+               + box('fund','資金提供プラン（グループ: 空欄）','var(--gold)','var(--gold-dim)');
+}
+function updPlan(key,k,v){
+  RATE_PLANS[key][k] = r6((parseFloat(v)||0)/100);
+  savePlans(); renderPlanEditor(); renderUserRateTable(); refreshAfterRateChange();
+}
+function resetPlans(){
+  if(!confirm('基本プランを初期値（自己資金30/10/5/5/50・資金提供15/5/5/25/50）に戻しますか？')) return;
+  RATE_PLANS = JSON.parse(JSON.stringify(DEFAULT_PLANS)); savePlans();
+  renderPlanEditor(); renderUserRateTable(); refreshAfterRateChange();
+}
+function renderPlanLabels(){
+  const a=document.getElementById('lbl-own-rate'), b=document.getElementById('lbl-fund-rate');
+  if(a) a.textContent='ユーザー取り分 '+pctTxt(RATE_PLANS.own.user);
+  if(b) b.textContent='ユーザー取り分 '+pctTxt(RATE_PLANS.fund.user);
+}
+
+// ---------------- 設定タブ：ユーザー別報酬率 ----------------
+function renderUserRateTable(){
+  const tbody = document.getElementById('ur-tbody'); if(!tbody) return;
+  const q = (document.getElementById('ur-search')?.value||'').trim();
+  const onlySet = document.getElementById('ur-only-set')?.checked;
+  let names = allKnownNames();
+  if (q) names = names.filter(n=>n.includes(q));
+  if (onlySet) names = names.filter(n=>USER_RATES[n]);
+  const cnt = document.getElementById('ur-count');
+  if (cnt) cnt.textContent = `${names.length}名 / 個別設定あり ${Object.keys(USER_RATES).length}名`;
+  if (!names.length){ tbody.innerHTML='<tr class="empty"><td colspan="6">該当ユーザーなし（クライアント情報を読み込むか、上の欄で名前を追加してください）</td></tr>'; return; }
+  tbody.innerHTML = names.map(n=>{
+    const u = USER_RATES[n]||{}, r = getRates(n), c = S.clients?.[n];
+    const nJs = JSON.stringify(n).replace(/"/g,'&quot;');
+    const grp = c ? (c.group||'（空欄）') : '<span style="color:var(--muted)">シート外</span>';
+    const pctVal = (u.ownPct!==null && u.ownPct!==undefined && u.ownPct!=='') ? u.ownPct : '';
+    const custom = u.custom;
+    const customCells = custom
+      ? `<div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">${RATE_KEYS.map(k=>`<label style="font-size:10px;color:var(--muted)">${RATE_NAMES[k]}<br><input type="number" step="0.1" value="${+(custom[k]*100).toFixed(2)}" onchange="updUserCustom(${nJs},'${k}',this.value)" class="inp" style="width:58px;padding:3px 6px;font-size:11.5px;font-family:var(--mono)"/></label>`).join('')}
+         <span style="font-size:11px;margin-left:4px;color:${Math.abs(rateSum(custom)-1)<0.0001?'var(--green)':'var(--red)'}">計${+(rateSum(custom)*100).toFixed(2)}%</span></div>`
+      : `<span style="font-size:11.5px;color:var(--dim);font-family:var(--mono)">${RATE_KEYS.map(k=>pctTxt(r[k])).join(' / ')}</span>`;
+    return `<tr>
+      <td style="white-space:nowrap">${escH(n)}</td>
+      <td style="font-size:12px;color:var(--dim)">${grp}</td>
+      <td><input type="number" min="0" max="100" step="1" value="${pctVal}" placeholder="${groupOwnPct(n)}" onchange="updUserPct(${nJs},this.value)" class="inp" style="width:70px;padding:4px 8px;font-size:12px;font-family:var(--mono)" ${custom?'disabled':''}/> <span style="font-size:11px;color:var(--muted)">%</span></td>
+      <td>${rateBadge(r,false)}</td>
+      <td><label style="font-size:11.5px;color:var(--dim);display:flex;gap:6px;align-items:center;margin-bottom:${custom?6:0}px;cursor:pointer"><input type="checkbox" ${custom?'checked':''} onchange="toggleUserCustom(${nJs},this.checked)" style="width:auto;accent-color:#a855f7"/>個別率</label>${customCells}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenFor(${nJs})">🧾 明細</button>
+        ${USER_RATES[n]?`<button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="clearUserRate(${nJs})" title="シートのグループ欄に戻す">↺</button>`:''}
+      </td>
+    </tr>`;
+  }).join('');
+}
+function updUserPct(name,v){
+  USER_RATES[name] = USER_RATES[name]||{};
+  USER_RATES[name].ownPct = (v===''||v===null) ? null : Math.max(0,Math.min(100,parseFloat(v)||0));
+  cleanupUserRate(name); saveUserRates(); renderUserRateTable(); refreshAfterRateChange(); urMsg(`✅ ${name} の自己資金比率を保存しました`);
+}
+function toggleUserCustom(name,on){
+  USER_RATES[name] = USER_RATES[name]||{};
+  if (on){ const base=getRates(name); USER_RATES[name].custom = Object.fromEntries(RATE_KEYS.map(k=>[k,base[k]])); }
+  else USER_RATES[name].custom = null;
+  cleanupUserRate(name); saveUserRates(); renderUserRateTable(); refreshAfterRateChange();
+}
+function updUserCustom(name,k,v){
+  if(!USER_RATES[name]?.custom) return;
+  USER_RATES[name].custom[k] = r6((parseFloat(v)||0)/100);
+  saveUserRates(); renderUserRateTable(); refreshAfterRateChange();
+  const s = rateSum(USER_RATES[name].custom);
+  urMsg(Math.abs(s-1)<0.0001 ? `✅ ${name} の個別率を保存しました` : `⚠️ ${name} の個別率の合計が ${+(s*100).toFixed(2)}% です（100%推奨）`);
+}
+function clearUserRate(name){
+  if(!confirm(`${name} の個別設定を削除し、シートのグループ欄に従う設定に戻しますか？`)) return;
+  delete USER_RATES[name]; saveUserRates(); renderUserRateTable(); refreshAfterRateChange();
+}
+function cleanupUserRate(name){
+  const u=USER_RATES[name]; if(!u) return;
+  if ((u.ownPct===null||u.ownPct===undefined||u.ownPct==='') && !u.custom) delete USER_RATES[name];
+}
+function addUserRateName(){
+  const el=document.getElementById('ur-new'); const n=(el?.value||'').trim(); if(!n) return;
+  USER_RATES[n]=USER_RATES[n]||{ownPct:groupOwnPct(n),custom:null}; saveUserRates(); el.value=''; renderUserRateTable();
+}
+function urMsg(t){ const e=document.getElementById('ur-msg'); if(!e) return; e.textContent=t; e.className='alert '+(t.startsWith('⚠')?'alert-error':'alert-success'); clearTimeout(urMsg._t); urMsg._t=setTimeout(()=>e.className='alert hidden',2500); }
+function exportRateSettings(){
+  const data = { version:1, exportedAt:new Date().toISOString(), plans:RATE_PLANS, users:USER_RATES, statement:lsGet(STMT_KEY,{}) };
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
+  a.download=`報酬率設定_${new Date().toISOString().slice(0,10)}.json`; a.click();
+}
+function importRateSettings(file){
+  if(!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    try{
+      const d=JSON.parse(rd.result);
+      if(!d.plans||!d.users) throw new Error('形式が違います');
+      if(!confirm(`設定を読み込みます（ユーザー別設定 ${Object.keys(d.users).length}名）。現在の設定は上書きされます。よろしいですか？`)) return;
+      RATE_PLANS=d.plans; USER_RATES=d.users; savePlans(); saveUserRates();
+      if(d.statement) lsSet(STMT_KEY,d.statement);
+      renderPlanEditor(); renderUserRateTable(); refreshAfterRateChange(); urMsg('✅ 設定を読み込みました');
+    }catch(e){ alert('読み込みに失敗しました: '+e.message); }
+  };
+  rd.readAsText(file);
+}
+
+// ================================================================
+// 🧾 報酬明細（印刷 / PDF保存）
+// ================================================================
+function stmtSettings(){ return Object.assign({issuer:'ソーシャルナビ', note:'', showBreakdown:false}, lsGet(STMT_KEY,{})); }
+function stmtInit(){
+  const s=stmtSettings();
+  const set=(id,v)=>{const e=document.getElementById(id); if(e && !e.dataset.init){ if(e.type==='checkbox') e.checked=!!v; else e.value=v; e.dataset.init='1'; }};
+  set('stmt-issuer', s.issuer); set('stmt-note', s.note); set('stmt-breakdown', s.showBreakdown);
+  const now=new Date();
+  const yEl=document.getElementById('stmt-year'); if(yEl && !yEl.value) yEl.value=now.getFullYear();
+  const qEl=document.getElementById('stmt-qmonth');
+  if(qEl && !qEl.dataset.init){ const m=now.getMonth()+1; const prevQ=[12,3,6,9][Math.floor((m-1)/3)]; qEl.value=prevQ; if(prevQ===12 && yEl) yEl.value=now.getFullYear()-1; qEl.dataset.init='1'; }
+  const mEl=document.getElementById('stmt-month'); if(mEl && !mEl.value) mEl.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const dl=document.getElementById('stmt-user-list'); if(dl) dl.innerHTML=allKnownNames().map(n=>`<option value="${escH(n)}">`).join('');
+  stmtModeChanged(); stmtRender();
+}
+function stmtSaveSettings(){
+  lsSet(STMT_KEY,{ issuer:document.getElementById('stmt-issuer')?.value||'', note:document.getElementById('stmt-note')?.value||'', showBreakdown:!!document.getElementById('stmt-breakdown')?.checked });
+}
+function stmtModeChanged(){
+  const mode=document.getElementById('stmt-mode')?.value||'quarter';
+  ['quarter','month','manual'].forEach(m=>{ document.querySelectorAll('.stmt-'+m).forEach(e=>e.style.display=(m===mode||(m==='month'&&mode==='manual'))?'':'none'); });
+}
+function stmtUserChanged(){
+  const n=document.getElementById('stmt-user')?.value.trim(); const el=document.getElementById('stmt-ownpct');
+  if(el && n) el.value = getOwnPct(n);
+  stmtRender();
+}
+// 明細データを組み立てる
+function stmtBuild(){
+  const name=(document.getElementById('stmt-user')?.value||'').trim();
+  if(!name) return {error:'利用者を選択してください'};
+  const mode=document.getElementById('stmt-mode')?.value||'quarter';
+  const pctIn=document.getElementById('stmt-ownpct')?.value;
+  const rates=getRates(name, pctIn===''?undefined:pctIn);
+  const member=(S.members||[]).find(m=>m.name===name);
+  let months=[], periodLabel='', payLabel='';
+  if(mode==='quarter'){
+    const y=parseInt(document.getElementById('stmt-year')?.value)||new Date().getFullYear();
+    const q=parseInt(document.getElementById('stmt-qmonth')?.value)||3;
+    months=getQuarterMonths(q,y).map(({year,month})=>({year,month,profit:member?((member.months[year]||{})[month]||0):0}));
+    periodLabel=`${y}年${q-2}月〜${q}月（${q}月末締め）`;
+    const pm=q===12?1:q+1, py=q===12?y+1:y; payLabel=`${py}年${pm}月10日前後`;
+  } else {
+    const ym=document.getElementById('stmt-month')?.value||'';
+    if(!ym) return {error:'対象月を選択してください'};
+    const [y,m]=ym.split('-').map(Number);
+    const profit = mode==='manual' ? (parseFloat(document.getElementById('stmt-profit')?.value)||0) : (member?((member.months[y]||{})[m]||0):0);
+    months=[{year:y,month:m,profit}];
+    periodLabel=`${y}年${m}月分`;
+  }
+  if(mode!=='manual' && !member) return {error:`売上シートに「${name}」のデータがありません（「手入力」モードなら利益を直接入力できます）`};
+  months=months.map(x=>({...x, ...calcVex(x.profit, rates)}));
+  const tot=k=>months.reduce((s,x)=>s+(x[k]||0),0);
+  const adjLabel=(document.getElementById('stmt-adj-label')?.value||'').trim();
+  const adj=parseFloat(document.getElementById('stmt-adj')?.value)||0;
+  const totalUser=tot('user');
+  return { name, mode, rates, months, periodLabel, payLabel,
+    totalProfit:tot('profit'), totalUser, totalRef1:tot('refDirect'), totalRef2:tot('refIndirect'), totalOps:tot('ops'), totalRisk:tot('risk'),
+    adjLabel, adj, payTotal: totalUser+adj,
+    ref1:(document.getElementById('stmt-ref1')?.value||'').trim(), ref2:(document.getElementById('stmt-ref2')?.value||'').trim(),
+    issuer:document.getElementById('stmt-issuer')?.value||'', note:document.getElementById('stmt-note')?.value||'',
+    showBreakdown:!!document.getElementById('stmt-breakdown')?.checked,
+    issueDate:new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}),
+    no:'RS-'+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+(Math.abs([...name].reduce((h,c)=>h*31+c.charCodeAt(0)|0,7))%10000).toString().padStart(4,'0')
+  };
+}
+// 印刷用HTML（白背景・A4）
+function stmtHTML(d){
+  const y=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
+  const r=d.rates;
+  const rateDesc = r._src==='custom' ? '個別設定' : r._src==='mix' ? `自己資金 ${+r.ownPct.toFixed(1)}% ／ 資金提供 ${+(100-r.ownPct).toFixed(1)}%` : rateLabel(r);
+  const monthRows=d.months.map(m=>`<tr><td>${m.year}年${m.month}月</td><td class="n">${y(m.profit)}</td><td class="n">${pctTxt(r.user)}</td><td class="n b">${y(m.user)}</td></tr>`).join('');
+  const bd = d.showBreakdown ? `
+    <h3>利益の配分内訳</h3>
+    <table><thead><tr><th>区分</th><th class="n">率</th><th class="n">金額</th><th>備考</th></tr></thead><tbody>
+      <tr><td>ご本人報酬</td><td class="n">${pctTxt(r.user)}</td><td class="n">${y(d.totalUser)}</td><td></td></tr>
+      <tr><td>直紹介者報酬</td><td class="n">${pctTxt(r.ref1)}</td><td class="n">${y(d.totalRef1)}</td><td>${escH(d.ref1)}</td></tr>
+      <tr><td>間接紹介者報酬</td><td class="n">${pctTxt(r.ref2)}</td><td class="n">${y(d.totalRef2)}</td><td>${escH(d.ref2)}</td></tr>
+      <tr><td>運営</td><td class="n">${pctTxt(r.ops)}</td><td class="n">${y(d.totalOps)}</td><td>複利運用</td></tr>
+      <tr><td>リスク管理</td><td class="n">${pctTxt(r.risk)}</td><td class="n">${y(d.totalRisk)}</td><td>複利運用</td></tr>
+      <tr class="t"><td>合計</td><td class="n">${pctTxt(rateSum(r))}</td><td class="n">${y(d.totalUser+d.totalRef1+d.totalRef2+d.totalOps+d.totalRisk)}</td><td></td></tr>
+    </tbody></table>` : '';
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>報酬明細書_${escH(d.name)}_${escH(d.periodLabel)}</title>
+<style>
+@page{size:A4;margin:16mm}
+*{box-sizing:border-box}body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,sans-serif;color:#1a1d24;margin:0;font-size:12.5px;line-height:1.6;background:#fff}
+.wrap{max-width:720px;margin:0 auto;padding:8px}
+h1{font-size:22px;letter-spacing:.3em;text-align:center;margin:0 0 22px;padding-bottom:10px;border-bottom:2px solid #1a1d24}
+.top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:20px}
+.to{font-size:18px;border-bottom:1px solid #1a1d24;padding:0 30px 4px 0}.to small{font-size:13px;margin-left:8px}
+.meta{text-align:right;font-size:11.5px;color:#444}
+.total{display:flex;justify-content:space-between;align-items:center;border:2px solid #1a1d24;padding:12px 18px;margin:0 0 20px}
+.total .l{font-size:13px}.total .v{font-size:24px;font-weight:700;letter-spacing:.02em}
+.info{display:grid;grid-template-columns:120px 1fr;border-top:1px solid #ccc;margin-bottom:20px}
+.info div{padding:6px 10px;border-bottom:1px solid #ccc}.info div:nth-child(odd){background:#f3f4f6;font-weight:600}
+h3{font-size:13px;margin:18px 0 6px;border-left:4px solid #1a1d24;padding-left:8px}
+table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #bbb;padding:6px 10px}th{background:#f3f4f6;font-weight:600;text-align:left}
+.n{text-align:right;font-variant-numeric:tabular-nums}.b{font-weight:700}tr.t td{font-weight:700;background:#fafafa}
+.note{margin-top:18px;padding:10px 12px;border:1px solid #ccc;min-height:48px;white-space:pre-wrap;font-size:11.5px}
+.issuer{margin-top:26px;text-align:right;font-size:13px}
+</style></head><body><div class="wrap">
+<h1>報酬明細書</h1>
+<div class="top"><div class="to">${escH(d.name)}<small>様</small></div>
+<div class="meta">発行日：${d.issueDate}<br>明細番号：${d.no}</div></div>
+<p style="margin:0 0 12px">下記のとおり、報酬をご報告いたします。</p>
+<div class="total"><span class="l">お支払金額</span><span class="v">${y(d.payTotal)}</span></div>
+<div class="info">
+  <div>対象期間</div><div>${escH(d.periodLabel)}</div>
+  ${d.payLabel?`<div>お支払予定</div><div>${escH(d.payLabel)}</div>`:''}
+  <div>資金区分</div><div>${escH(rateDesc)}</div>
+  <div>報酬率</div><div>運用利益の ${pctTxt(r.user)}</div>
+</div>
+<h3>月別明細</h3>
+<table><thead><tr><th>対象月</th><th class="n">運用利益</th><th class="n">報酬率</th><th class="n">報酬額</th></tr></thead>
+<tbody>${monthRows}
+<tr class="t"><td>小計</td><td class="n">${y(d.totalProfit)}</td><td></td><td class="n">${y(d.totalUser)}</td></tr>
+${d.adj?`<tr><td colspan="3">${escH(d.adjLabel||'調整額')}</td><td class="n">${y(d.adj)}</td></tr>`:''}
+<tr class="t"><td colspan="3">お支払金額</td><td class="n">${y(d.payTotal)}</td></tr>
+</tbody></table>
+${bd}
+${d.note?`<div class="note">${escH(d.note)}</div>`:''}
+<div class="issuer">${escH(d.issuer)}</div>
+</div></body></html>`;
+}
+function stmtRender(){
+  const box=document.getElementById('stmt-preview'); if(!box) return;
+  const d=stmtBuild();
+  if(d.error){ box.innerHTML=`<div style="color:var(--muted);font-size:13px;text-align:center;padding:40px 0">${escH(d.error)}</div>`; return; }
+  box.innerHTML=`<iframe id="stmt-frame" style="width:100%;height:760px;border:0;background:#fff;border-radius:var(--r-sm)"></iframe>`;
+  document.getElementById('stmt-frame').srcdoc=stmtHTML(d);
+}
+function stmtPrint(){
+  stmtSaveSettings();
+  const d=stmtBuild(); if(d.error){ alert(d.error); return; }
+  const f=document.createElement('iframe');
+  f.style.cssText='position:fixed;right:0;bottom:0;width:0;height:0;border:0';
+  document.body.appendChild(f);
+  f.onload=()=>{ setTimeout(()=>{ f.contentWindow.focus(); f.contentWindow.print(); setTimeout(()=>f.remove(),1500); },150); };
+  f.srcdoc=stmtHTML(d);
+}
+// 他の画面から明細を開く
+function stmtOpenFor(name, opt={}){
+  sw('vex'); vexSwitchTab('statement');
+  const u=document.getElementById('stmt-user'); if(u) u.value=name;
+  const p=document.getElementById('stmt-ownpct'); if(p) p.value=(opt.ownPct!==undefined?opt.ownPct:getOwnPct(name));
+  if(opt.mode){ document.getElementById('stmt-mode').value=opt.mode; }
+  if(opt.month){ document.getElementById('stmt-month').value=opt.month; }
+  if(opt.profit!==undefined){ document.getElementById('stmt-profit').value=opt.profit; }
+  if(opt.ref1!==undefined){ document.getElementById('stmt-ref1').value=opt.ref1; }
+  if(opt.ref2!==undefined){ document.getElementById('stmt-ref2').value=opt.ref2; }
+  stmtModeChanged(); stmtRender();
+}
+</script>
+
 
 <script>
 const SALES_ID='1F07O3cwj7SlqEQKz5sz7L81vEiEqHKmM8Czg1cxHIAs';
@@ -1127,7 +1562,7 @@ function initApp(){
   document.getElementById('connLabel').textContent=S.isDemo?'デモモード':'接続済み';
   renderYrPills();renderMoPills();renderAll();loadSaved();
 }
-function renderAll(){renderStats();renderChart();renderMainTable();renderDistTab();renderCliTab();renderSettingsTab();renderCurRatio();}
+function renderAll(){renderStats();renderChart();renderMainTable();renderDistTab();renderCliTab();renderSettingsTab();renderCurRatio();try{renderPlanEditor();renderUserRateTable();renderPlanLabels();}catch(e){}}
 
 function getYears(){const s=new Set();S.members.forEach(m=>Object.keys(m.months).forEach(y=>s.add(parseInt(y))));return[...s].sort();}
 function renderYrPills(){document.getElementById('yrPills').innerHTML=getYears().map(y=>`<button class="pill yr${y===S.year?' active':''}" onclick="selYr(${y})">${y}年</button>`).join('');}
@@ -1147,7 +1582,7 @@ function renderStats(){
     const rev=(m.months[S.year]||{})[S.month]||0;
     if(!rev) return;
     const type=getMemberVexType(m.name);
-    totalOps+=Math.round(rev*(type==='own'?0.05:0.25));
+    totalOps+=Math.round(rev*getRates(m.name).ops);
   });
   document.getElementById('statGrid').innerHTML=`
     <div class="stat-card"><div class="stat-lbl">月次合計収益（${S.year}年${S.month}月）</div><div class="stat-val">¥${fmt(grand)}</div><div class="stat-sub">${activeCount}名（収益あり）/ 全${S.members.length}名</div></div>
@@ -1167,7 +1602,7 @@ function renderChart(){
   const userTakes=activeMembers.map(m=>{
     const rev=(m.months[S.year]||{})[S.month]||0;
     const type=getMemberVexType(m.name);
-    return Math.round(rev*(type==='own'?0.30:0.15));
+    return Math.round(rev*getRates(m.name).user);
   });
   const ctx=document.getElementById('mainChart').getContext('2d');
   if(S.chart) S.chart.destroy();
@@ -1185,22 +1620,22 @@ function renderMainTable(){
   let rows=activeMembers.map((m,i)=>{
     const rev=(m.months[S.year]||{})[S.month]||0;
     const type=getMemberVexType(m.name);
-    const userRate=type==='own'?0.30:0.15;
-    const userAmt=Math.round(rev*userRate);
+    const rt=getRates(m.name);
+    const userAmt=Math.round(rev*rt.user);
     const col=COLORS[S.members.indexOf(m)%COLORS.length];
-    const tc=type==='own'?'var(--blue)':'var(--gold)';
-    const typeLbl=type==='own'?'自己資金30%':'資金提供15%';
+    const tc=rateColor(rt);
+    const typeLbl=rateLabel(rt)+' '+pctTxt(rt.user);
     const bw=grand>0?Math.round(rev/grand*100):0;
     return`<tr>
       <td><div class="mc"><div class="av" style="background:${col}22;color:${col}">${m.name[0]}</div>${m.name}</div></td>
       <td class="mn">¥${fmt(rev)}</td>
       <td class="mn">¥${fmt(m.totalProfit||0)}</td>
-      <td><span class="rb" style="background:${type==='own'?'var(--blue-dim)':'var(--gold-dim)'};color:${tc}">${typeLbl}</span></td>
+      <td><span class="rb" style="background:${tc}22;color:${tc}">${typeLbl}</span></td>
       <td class="gd">¥${fmt(userAmt)}</td>
       <td><div class="mb"><div class="mb-tr"><div class="mb-fl" style="width:${bw}%;background:${col}"></div></div><span class="mb-pc">${bw}%</span></div></td>
     </tr>`;
   });
-  rows.push(`<tr class="tot"><td>合計 <span style="font-size:11px;color:var(--muted);font-weight:400">(${activeMembers.length}名)</span></td><td class="mn">¥${fmt(grand)}</td><td class="mn">—</td><td>—</td><td class="gd">¥${fmt(activeMembers.reduce((s,m)=>{const rev=(m.months[S.year]||{})[S.month]||0;const t=getMemberVexType(m.name);return s+Math.round(rev*(t==='own'?0.30:0.15));},0))}</td><td></td></tr>`);
+  rows.push(`<tr class="tot"><td>合計 <span style="font-size:11px;color:var(--muted);font-weight:400">(${activeMembers.length}名)</span></td><td class="mn">¥${fmt(grand)}</td><td class="mn">—</td><td>—</td><td class="gd">¥${fmt(activeMembers.reduce((s,m)=>{const rev=(m.months[S.year]||{})[S.month]||0;return s+Math.round(rev*getRates(m.name).user);},0))}</td><td></td></tr>`);
   document.getElementById('mainTbody').innerHTML=rows.join('');
 }
 
@@ -1215,9 +1650,10 @@ function renderDistTab(){
     S.members.forEach((m,i)=>{
       const rev=revs[i]; if(!rev) return;
       const type=getMemberVexType(m.name);
-      totUser+=Math.round(rev*(type==='own'?0.30:0.15));
-      totRef+=Math.round(rev*(type==='own'?0.15:0.10));
-      totOps+=Math.round(rev*(type==='own'?0.05:0.25));
+      const rt=getRates(m.name);
+      totUser+=Math.round(rev*rt.user);
+      totRef+=Math.round(rev*(rt.ref1+rt.ref2));
+      totOps+=Math.round(rev*rt.ops);
     });
     const detail=grand>0?`<span style="font-size:11px;color:var(--blue)">手取:¥${fmtS(totUser)}</span>
       <span style="color:var(--border2);margin:0 3px">/</span>
@@ -1258,7 +1694,7 @@ function renderSettingsTab(){
     const rev=(m.months[S.year]||{})[S.month]||0;
     if(!rev) return;
     const type=getMemberVexType(m.name);
-    totalOps+=Math.round(rev*(type==='own'?0.05:0.25));
+    totalOps+=Math.round(rev*getRates(m.name).ops);
   });
   const opsEl=document.getElementById('ops-total-val');
   if(opsEl) opsEl.textContent='¥'+fmt(totalOps);
@@ -1281,7 +1717,7 @@ function updRatio(){
   S.members.forEach(m=>{
     const rev=(m.months[S.year]||{})[S.month]||0; if(!rev) return;
     const type=getMemberVexType(m.name);
-    totalOps+=Math.round(rev*(type==='own'?0.05:0.25));
+    totalOps+=Math.round(rev*getRates(m.name).ops);
   });
   const preview=document.getElementById('ops-preview');
   const previewRows=document.getElementById('ops-preview-rows');
@@ -1323,7 +1759,7 @@ function renderCurRatio(){
   S.members.forEach(m=>{
     const rev=(m.months[S.year]||{})[S.month]||0; if(!rev) return;
     const type=getMemberVexType(m.name);
-    totalOps+=Math.round(rev*(type==='own'?0.05:0.25));
+    totalOps+=Math.round(rev*getRates(m.name).ops);
   });
   el.innerHTML=`<div style="font-size:12px;color:var(--muted);margin-bottom:10px">今月の運営取り分: <span style="color:var(--gold);font-family:var(--mono)">¥${fmt(totalOps)}</span></div>`
     +OPS_TEAM.map((name,i)=>{
@@ -1351,6 +1787,7 @@ function sw(name){
   if(name==='history') { histLoadRemote().then(arr=>{ if(arr.length) renderHistoryTab(); }); renderHistoryTab(); }
   if(name==='payment') renderBankTab();
   if(name==='vexstatus') renderVexStatus();
+  if(name==='settings') { renderPlanEditor(); renderUserRateTable(); }
 }
 
 // ================================================================
@@ -1469,10 +1906,12 @@ function renderBankTab(){
 function updateBankRates(){
   const type=document.getElementById('bank-type')?.value||'資金提供';
   const reward=parseFloat(document.getElementById('bank-reward-amount')?.value)||0;
-  const r=BANK_RATES[type]||BANK_RATES['資金提供'];
-  document.getElementById('bank-rate-self').textContent=(r.self*100)+'%';
-  document.getElementById('bank-rate-direct').textContent=(r.direct*100)+'%';
-  document.getElementById('bank-rate-indirect').textContent=(r.indirect*100)+'%';
+  const bn=(document.getElementById('bank-name')?.value||'').trim();
+  const p=(bn && USER_RATES[bn]) ? getRates(bn) : RATE_PLANS[type==='自己資金'?'own':'fund'];
+  const r={self:p.user,direct:p.ref1,indirect:p.ref2};
+  document.getElementById('bank-rate-self').textContent=pctTxt(r.self);
+  document.getElementById('bank-rate-direct').textContent=pctTxt(r.direct);
+  document.getElementById('bank-rate-indirect').textContent=pctTxt(r.indirect);
   document.getElementById('bank-calc-self').textContent='¥'+fmt(Math.round(reward*r.self));
   document.getElementById('bank-calc-direct').textContent='¥'+fmt(Math.round(reward*r.direct));
   document.getElementById('bank-calc-indirect').textContent='¥'+fmt(Math.round(reward*r.indirect));
@@ -1612,8 +2051,8 @@ const RISK_RATE = 0.50;
 // メンバーのVEXタイプをクライアント情報から自動判定
 function getMemberVexType(memberName) {
   const c = S.clients[memberName];
-  if (!c) return 'fund'; // デフォルト資金提供
-  return (c.group||'').trim() === '自己資金' ? 'own' : 'fund';
+  // 自己資金比率50%以上を「own」として扱う（色分け用。計算は getRates() を使用）
+  return getOwnPct(memberName) >= 50 ? 'own' : 'fund';
 }
 
 // 月次の運営・リスク管理額を計算
@@ -1625,8 +2064,9 @@ function calcFundByMonth(year, month) {
     const rev = revs[i];
     if(!rev) return;
     const type = getMemberVexType(m.name);
-    risk += Math.round(rev * RISK_RATE);
-    ops  += Math.round(rev * VEX_RATES_OPS[type]);
+    const rt = getRates(m.name);
+    risk += Math.round(rev * rt.risk);
+    ops  += Math.round(rev * rt.ops);
   });
   return { grand, risk, ops };
 }
@@ -1753,17 +2193,17 @@ function getQuarterMonths(settlMonth, settlYear) {
 }
 
 // 3ヶ月分の実データで報酬計算
-function calc3MonthSettlement(memberName, settlMonth, settlYear) {
+function calc3MonthSettlement(memberName, settlMonth, settlYear, ownPct) {
   const member = S.members.find(m=>m.name===memberName);
   if(!member) return null;
   const qMonths = getQuarterMonths(settlMonth, settlYear);
   const type = getMemberVexType(memberName);
-  const rates = VEX_RATES[type];
+  const rates = getRates(memberName, ownPct);
 
   let totalProfit=0, totalUser=0, totalRef1=0, totalRef2=0, totalOps=0, totalRisk=0;
   const monthly = qMonths.map(({year,month}) => {
     const profit = (member.months[year]||{})[month]||0;
-    const r = calcVex(profit, type);
+    const r = calcVex(profit, rates);
     totalProfit+=profit; totalUser+=r.user; totalRef1+=r.refDirect;
     totalRef2+=r.refIndirect; totalOps+=r.ops; totalRisk+=r.risk;
     return {year, month, profit, ...r};
@@ -1791,9 +2231,10 @@ function renderSettlement() {
     const targetYM = `${yr}-${String(mo).padStart(2,'0')}`;
     const settledLabel = row.startYM ? getSettlementLabel(row.startYM, targetYM) : null;
     const isTarget = settledLabel === `${yr}年${mo}月`;
-    const d = calc3MonthSettlement(name, mo, yr);
-    const tc = (row.type||getMemberVexType(name))==='own' ? 'var(--blue)' : 'var(--gold)';
-    const typeLbl = (row.type||getMemberVexType(name))==='own' ? '自己資金' : '資金提供';
+    const d = calc3MonthSettlement(name, mo, yr, row.ownPct);
+    const rtS = getRates(name, row.ownPct);
+    const tc = rateColor(rtS);
+    const typeLbl = rateLabel(rtS);
     // 支払い日（翌月10日前後）
     const payMonth = mo === 12 ? 1 : mo + 1;
     const payYear  = mo === 12 ? yr + 1 : yr;
@@ -1824,8 +2265,9 @@ const VEX_RATES = {
   fund: { user:0.15, ref1:0.05, ref2:0.05, ops:0.25, risk:0.50 }
 };
 
+// type: 'own' | 'fund' | 率オブジェクト（getRates() の戻り値など）
 function calcVex(profit, type) {
-  const r = VEX_RATES[type] || VEX_RATES.own;
+  const r = (type && typeof type === 'object') ? type : (RATE_PLANS[type] || RATE_PLANS.own);
   const user     = Math.round(profit * r.user);
   const refDirect  = Math.round(profit * r.ref1);
   const refIndirect= Math.round(profit * r.ref2);
@@ -1879,7 +2321,14 @@ function getSettlementLabel(startYM, targetYM) {
 // VEXタブ内サブタブ切替
 // ① 単独計算
 function vexCalc() {
-  const type = document.querySelector('input[name="vex-type"]:checked')?.value;
+  const vName = document.getElementById('vex-name')?.value.trim() || '';
+  const pctEl = document.getElementById('vex-ownpct');
+  const pctNum = document.getElementById('vex-ownpct-num');
+  if (pctNum && pctEl && pctNum.value !== pctEl.value) pctNum.value = pctEl.value;
+  const ownPct = parseFloat(pctEl?.value ?? 100);
+  const radio = document.querySelector('input[name="vex-type"]:checked');
+  const type = radio ? (ownPct>=50?'own':'fund') : (USER_RATES[vName] ? 'own' : undefined);
+  if (radio) { const want = ownPct>=50?'vex-own':'vex-fund'; const w=document.getElementById(want); if(w) w.checked=true; }
   const profit = parseFloat(document.getElementById('vex-profit')?.value) || 0;
   const ref1name = document.getElementById('vex-ref1')?.value.trim() || '';
   const ref2name = document.getElementById('vex-ref2')?.value.trim() || '';
@@ -1891,17 +2340,15 @@ function vexCalc() {
   if (fundEl) fundEl.style.borderColor = type === 'fund' ? 'var(--gold)' : 'var(--border)';
 
   const resultEl = document.getElementById('vex-result-body');
-  if (!type || !profit) {
+  if (!profit) {
     resultEl.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;padding:24px 0">資金タイプと利益を入力してください</div>';
     return;
   }
 
-  const r = calcVex(profit, type);
-  const isOwn = type === 'own';
-  const ac = isOwn ? 'var(--blue)' : 'var(--gold)';
-  const typeBadge = isOwn
-    ? '<span class="rb">自己資金</span>'
-    : '<span class="rb" style="background:var(--gold-dim);color:var(--gold)">資金提供</span>';
+  const rts = getRates(vName, ownPct);
+  const r = calcVex(profit, rts);
+  const ac = rateColor(rts);
+  const typeBadge = rateBadge(rts, false);
 
   const row = (label, val, pct, color, sub='') => `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);background:${color}08">
@@ -1942,32 +2389,43 @@ function vexCalc() {
   resultEl.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;padding:0 14px 14px;border-bottom:2px solid var(--border2)">
       <div><div style="font-size:11px;color:var(--muted);margin-bottom:3px">月次利益</div><div style="font-family:var(--mono);font-size:22px;font-weight:700">¥${fmt(profit)}</div></div>
-      <div style="text-align:right">${typeBadge}</div>
+      <div style="text-align:right">${typeBadge}${rts._src==='custom'?'<div style="font-size:10.5px;color:var(--muted);margin-top:4px">設定タブの個別率を適用中</div>':''}</div>
     </div>
     <div style="margin-top:4px">
-      ${row('ユーザー手取り', r.user, Math.round(rates.user*100), ac)}
-      ${row('直紹介者報酬', r.refDirect, Math.round(rates.ref1*100), '#a5c4ff', ref1name ? `→ ${ref1name}` : '')}
-      ${row('間接紹介者報酬', r.refIndirect, Math.round(rates.ref2*100), '#a5c4ff', ref2name ? `→ ${ref2name}` : '')}
-      ${row('運営（複利運用）', r.ops, Math.round(rates.ops*100), 'var(--gold)')}
-      ${row('リスク管理（複利運用）', r.risk, Math.round(rates.risk*100), 'var(--green)')}
+      ${row('ユーザー手取り', r.user, +(rates.user*100).toFixed(2), ac)}
+      ${row('直紹介者報酬', r.refDirect, +(rates.ref1*100).toFixed(2), '#a5c4ff', ref1name ? `→ ${ref1name}` : '')}
+      ${row('間接紹介者報酬', r.refIndirect, +(rates.ref2*100).toFixed(2), '#a5c4ff', ref2name ? `→ ${ref2name}` : '')}
+      ${row('運営（複利運用）', r.ops, +(rates.ops*100).toFixed(2), 'var(--gold)')}
+      ${row('リスク管理（複利運用）', r.risk, +(rates.risk*100).toFixed(2), 'var(--green)')}
     </div>
     <div style="padding:10px 14px;background:rgba(255,255,255,.03);display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
       <span>合計</span><span style="font-family:var(--mono)">¥${fmt(r.user+r.refDirect+r.refIndirect+r.ops+r.risk)}</span>
     </div>
-    ${settlInfo}`;
+    ${settlInfo}
+    ${vName?`<button class="btn btn-secondary btn-full btn-sm" style="margin-top:12px" onclick="stmtOpenFor(${JSON.stringify(vName).replace(/"/g,'&quot;')},{mode:'manual',profit:${profit},ownPct:${ownPct},ref1:${JSON.stringify(ref1name).replace(/"/g,'&quot;')},ref2:${JSON.stringify(ref2name).replace(/"/g,'&quot;')}})">🧾 この内容で報酬明細を作成</button>`:''}`;
+}
+function vexNameChanged(){
+  const n=document.getElementById('vex-name')?.value.trim();
+  if(n && (USER_RATES[n] || (S.clients||{})[n])){
+    const p=getOwnPct(n);
+    document.getElementById('vex-ownpct').value=p; document.getElementById('vex-ownpct-num').value=p;
+    const rd=document.getElementById(p>=50?'vex-own':'vex-fund'); if(rd) rd.checked=true;
+  }
+  vexCalc();
 }
 
 // ② 一括計算
 let vexRows = [];
 
 function vexSwitchTab(name) {
-  ['single','batch','schedule','rule'].forEach(n => {
+  ['single','batch','schedule','rule','statement'].forEach(n => {
     const p = document.getElementById(`vex-pane-${n}`);
     const b = document.getElementById(`vex-tab-${n}`);
     if(p) p.style.display = n===name ? '' : 'none';
     if(b) b.classList.toggle('active', n===name);
   });
   if (name === 'schedule') renderSettlement();
+  if (name === 'statement') stmtInit();
 }
 
 function vexLoadFromClients() {
@@ -1977,7 +2435,8 @@ function vexLoadFromClients() {
   vexRows = entries.map(([name, c]) => ({
     id: Date.now() + Math.random(),
     name,
-    type: (c.group||'').trim() === '自己資金' ? 'own' : 'fund',
+    type: getOwnPct(name) >= 50 ? 'own' : 'fund',
+    ownPct: getOwnPct(name),
     profit: 0,
     ref1: '',
     ref2: '',
@@ -1992,7 +2451,7 @@ function vexLoadFromClients() {
 }
 
 function vexAddRow() {
-  vexRows.push({ id: Date.now(), name:'', type:'own', profit:0, ref1:'', ref2:'', startYM:'' });
+  vexRows.push({ id: Date.now(), name:'', type:'own', ownPct:100, profit:0, ref1:'', ref2:'', startYM:'' });
   renderVexBatch();
 }
 
@@ -2004,8 +2463,12 @@ function vexDeleteRow(id) {
 function vexUpdateRow(id, field, value) {
   const row = vexRows.find(r => r.id === id);
   if (!row) return;
-  row[field] = field === 'profit' ? (parseFloat(value)||0) : value;
-  renderVexBatch();
+  if (field === 'profit') row[field] = parseFloat(value)||0;
+  else if (field === 'ownPct') { row.ownPct = Math.max(0,Math.min(100,parseFloat(value)||0)); row.type = row.ownPct>=50?'own':'fund'; }
+  else if (field === 'name') { row.name = value; if (USER_RATES[value] || (S.clients||{})[value]) { row.ownPct = getOwnPct(value); row.type = row.ownPct>=50?'own':'fund'; } }
+  else row[field] = value;
+  // 入力中のフォーカスを維持するため、数値入力は少し遅らせて再描画
+  clearTimeout(vexUpdateRow._t); vexUpdateRow._t = setTimeout(renderVexBatch, field==='name'?600:250);
 }
 
 function renderVexBatch() {
@@ -2026,11 +2489,12 @@ function renderVexBatch() {
   let totUser=0, totRef1=0, totRef2=0, totOps=0, totRisk=0;
 
   tbody.innerHTML = vexRows.map(row => {
-    const r = row.profit > 0 ? calcVex(row.profit, row.type) : null;
+    if (row.ownPct === undefined) row.ownPct = row.type==='own'?100:0;
+    const rts = getRates(row.name, row.ownPct);
+    const r = row.profit > 0 ? calcVex(row.profit, rts) : null;
     if (r) { totUser+=r.user; totRef1+=r.refDirect; totRef2+=r.refIndirect; totOps+=r.ops; totRisk+=r.risk; }
-    const isOwn = row.type === 'own';
-    const tc = isOwn ? 'var(--blue)' : 'var(--gold)';
-    const typeLbl = isOwn ? '自己資金' : '資金提供';
+    const tc = rateColor(rts);
+    const nameJs = JSON.stringify(row.name||'').replace(/"/g,'&quot;');
 
     // 清算判定（締め月基準）
     let settlCell = '<td style="color:var(--muted);font-size:11px">—</td>';
@@ -2049,11 +2513,9 @@ function renderVexBatch() {
 
     return `<tr>
       <td><input value="${row.name}" oninput="vexUpdateRow(${row.id},'name',this.value)" class="inp" style="padding:5px 8px;font-size:12px;width:90px" placeholder="名前"/></td>
-      <td>
-        <select onchange="vexUpdateRow(${row.id},'type',this.value)" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);color:${tc};font-size:11px;padding:5px 7px;outline:none">
-          <option value="own" ${isOwn?'selected':''}>自己資金</option>
-          <option value="fund" ${!isOwn?'selected':''}>資金提供</option>
-        </select>
+      <td style="white-space:nowrap">
+        <input type="number" min="0" max="100" value="${row.ownPct}" oninput="vexUpdateRow(${row.id},'ownPct',this.value)" class="inp" style="padding:5px 6px;font-size:12px;width:58px;font-family:var(--mono)" title="自己資金の割合（%）" ${rts._src==='custom'?'disabled':''}/><span style="font-size:10px;color:var(--muted)">%</span>
+        <div style="font-size:10.5px;color:${tc};margin-top:2px">${rateLabel(rts)} ${pctTxt(rts.user)}</div>
       </td>
       <td><input type="number" value="${row.profit||''}" oninput="vexUpdateRow(${row.id},'profit',this.value)" class="inp" style="padding:5px 8px;font-size:12px;width:100px;font-family:var(--mono)" placeholder="0"/></td>
       <td class="mn" style="color:${tc};font-size:12px">${r ? '¥'+fmt(r.user) : '—'}</td>
@@ -2064,7 +2526,7 @@ function renderVexBatch() {
       <td class="mn" style="color:var(--gold);font-size:12px">${r ? '¥'+fmt(r.ops) : '—'}</td>
       <td class="mn" style="color:var(--green);font-size:12px">${r ? '¥'+fmt(r.risk) : '—'}</td>
       ${settlCell}
-      <td><button onclick="vexDeleteRow(${row.id})" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px">✕</button></td>
+      <td style="white-space:nowrap"><button onclick="stmtOpenFor(${nameJs},{mode:'manual',profit:${row.profit||0},ownPct:${row.ownPct},month:'${batchMonth}',ref1:${JSON.stringify(row.ref1||'').replace(/"/g,'&quot;')},ref2:${JSON.stringify(row.ref2||'').replace(/"/g,'&quot;')}})" title="報酬明細" style="background:transparent;border:none;color:var(--dim);cursor:pointer;font-size:13px;padding:2px 4px">🧾</button><button onclick="vexDeleteRow(${row.id})" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:2px 6px">✕</button></td>
     </tr>`;
   }).join('');
 
@@ -2261,13 +2723,13 @@ async function vexBulkRegisterToPayment(){
   var ok=0,fail=0;
   for(var i=0;i<rows.length;i++){
     var row=rows[i];
-    var r=calcVex(row.profit,row.type);
-    var cl=S.clients[row["名前"]]||{};
+    var rts=getRates(row.name,row.ownPct);
+    var r=calcVex(row.profit,rts);
+    var cl=S.clients[row.name]||{};
     var transfer=r.user+2000;
     var payload={
-      action:"saveBankTransfer",
-      name:row["名前"],
-      type:row.type==="own"?"自己資金":"資金提供",
+      name:row.name,
+      type:rts._src==="mix"?("混合(自己"+rts.ownPct+"%)"):rts._src==="custom"?"個別設定":(row.ownPct>=50?"自己資金":"資金提供"),
       bankName:cl.bank||"",
       branchName:cl.branch||"",
       accountType:cl.accountType||"普通",
@@ -2280,12 +2742,12 @@ async function vexBulkRegisterToPayment(){
       pcFee:0,
       transferAmount:transfer,
       transferDate:payDate,
-      referrer:row["参照1"]||"",
+      referrer:row.ref1||"",
       status:"未送金",
       note:""
     };
     try{
-      var res=await gasPost(payload);
+      var res=await gasPost("saveBankTransfer",payload);
       if(res.success)ok++; else fail++;
     }catch(e){fail++;}
   }
@@ -2391,9 +2853,9 @@ function renderNetworkTab() {
   } else {
     tbody.innerHTML = filtered.map((r,i)=>{
       const col = COLORS[i%COLORS.length];
-      const type = getMemberVexType(r.user);
-      const tc = type==='own'?'var(--blue)':'var(--gold)';
-      const typeLbl = type==='own'?'自己資金':'資金提供';
+      const rtN = getRates(r.user);
+      const tc = rateColor(rtN);
+      const typeLbl = rateLabel(rtN);
       const chain = [r.user, r.ref1, r.ref2].filter(Boolean).join(' ← ');
       return `<tr>
         <td><div class="mc"><div class="av" style="background:${col}22;color:${col};width:26px;height:26px;border-radius:50%;font-size:11px">${r.user[0]}</div>${r.user}</div></td>
@@ -2484,11 +2946,14 @@ async function histLoadRemote() {
 
 function histCalcPreview() {
   const profit = parseFloat(document.getElementById('hist-profit')?.value)||0;
-  const type = document.getElementById('hist-type')?.value||'fund';
+  const htype = document.getElementById('hist-type')?.value||'auto';
+  const huser = document.getElementById('hist-user')?.value.trim();
+  const rts = htype==='auto' ? getRates(huser) : getRates('', htype==='own'?100:0);
+  const type = rts.ownPct>=50?'own':'fund';
   const preview = document.getElementById('hist-preview');
   const rows = document.getElementById('hist-preview-rows');
   if(!profit || !preview) return;
-  const r = calcVex(profit, type);
+  const r = calcVex(profit, rts);
   preview.style.display = '';
   const items = [
     ['ユーザー手取り', r.user, type==='own'?'var(--blue)':'var(--gold)'],
@@ -2505,7 +2970,7 @@ function histCalcPreview() {
 async function histSave() {
   const ym    = document.getElementById('hist-ym')?.value;
   const user  = document.getElementById('hist-user')?.value.trim();
-  const type  = document.getElementById('hist-type')?.value||'fund';
+  const htype = document.getElementById('hist-type')?.value||'auto';
   const period= document.getElementById('hist-period')?.value.trim();
   const profit= parseFloat(document.getElementById('hist-profit')?.value)||0;
   const ref1  = document.getElementById('hist-ref1')?.value.trim();
@@ -2514,13 +2979,16 @@ async function histSave() {
 
   if(!ym||!user){ histMsg('清算年月と利用者名は必須です','error'); return; }
 
-  const r = calcVex(profit, type);
+  const rts = htype==='auto' ? getRates(user) : getRates('', htype==='own'?100:0);
+  const type = rts.ownPct>=50?'own':'fund';
+  const r = calcVex(profit, rts);
   const entry = {
     id: Date.now(),
     ym, user, type, period, profit,
     user_reward: r.user, ref1_reward: r.refDirect, ref2_reward: r.refIndirect,
     ops_reward: r.ops, risk_reward: r.risk,
     ref1, ref2, memo,
+    rateLabel: rateLabel(rts), userRate: rts.user,
     createdAt: new Date().toISOString()
   };
   // ローカル更新
@@ -2623,7 +3091,7 @@ function histExportCSV() {
   if(!arr.length){ alert('エクスポートするデータがありません'); return; }
   const headers = ['清算年月','利用者','資金タイプ','対象期間','3ヶ月累計利益','ユーザー報酬','直紹介報酬','間接紹介報酬','運営','リスク管理','直紹介者','間接紹介者','メモ','記録日時'];
   const rows = arr.map(r=>[
-    r.ym, r.user, r.type==='own'?'自己資金':'資金提供', r.period||'',
+    r.ym, r.user, r.rateLabel||(r.type==='own'?'自己資金':'資金提供'), r.period||'',
     r.profit, r.user_reward, r.ref1_reward, r.ref2_reward, r.ops_reward, r.risk_reward,
     r.ref1||'', r.ref2||'', r.memo||'', r.createdAt
   ].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(','));
