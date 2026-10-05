@@ -212,6 +212,14 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <div style="overflow-x:auto"><table style="min-width:1100px"><thead><tr><th>顧客番号</th><th>名前</th><th>直紹介者</th><th>間接紹介者</th><th>今月の区分</th><th>資金提供者</th><th>銀行残高</th><th>口座残高（主要）</th><th></th></tr></thead>
         <tbody id="cliTbody"><tr class="empty"><td colspan="9">データを読み込んでください</td></tr></tbody></table></div>
       </div>
+      <div class="tbl-card" style="margin-top:20px">
+        <div class="tbl-hdr"><div class="tbl-ttl">🔤 紹介者名の統一</div><div class="tbl-sub" id="al-count"></div></div>
+        <p style="font-size:12px;color:var(--muted);padding:0 20px 8px;line-height:1.8">個人タブの紹介者欄の書き方ごとに、どの名前として扱うかを表示します。スペースの違い・「さん」の有無は自動で統一、名字だけの書き方は同じ名字のフルネームが1人だけならその人にまとめます。<br>
+          違う場合や、まとめたい場合（例：星野友里恵 → 星野友里江）は「統一後の名前」を書き換えてください（このブラウザに保存・設定の書き出しに含まれます）。</p>
+        <div id="al-msg" class="alert hidden" style="margin:0 20px 10px"></div>
+        <div style="overflow-x:auto"><table><thead><tr><th>統一後の名前</th><th>区分</th><th>シートでの書き方（人数）</th><th>判定</th><th></th></tr></thead>
+        <tbody id="al-tbody"><tr class="empty"><td colspan="5">個人タブの読み込み後に表示されます</td></tr></tbody></table></div>
+      </div>
     </div>
     <div id="tab-vex" class="tab-pane">
 
@@ -1113,26 +1121,60 @@ let CLIENT_REFS = lsGet(REF_KEY, {}) || {};
 let SHEET_REFS = {};
 function saveClientRefs(){ lsSet(REF_KEY, CLIENT_REFS); }
 function isClientName(n){ return !!n && allKnownNames().includes(n); }
+// ---------------- 名前の統一（表記ゆれ） ----------------
+//  ① スペース（全角・半角）と「さん」「様」の違いは自動で同じ名前にする
+//  ② 名字だけ（例：三國）は、それで始まるフルネームが1人だけならその人にまとめる
+//  ③ それ以外は NAME_ALIAS（クライアントタブ「🔤 紹介者名の統一」で設定）で統一
+const ALIAS_KEY='vex_name_alias';
+let NAME_ALIAS = lsGet(ALIAS_KEY, {}) || {};   // { 正規化した書き方: 統一後の名前 }
+function saveAlias(){ lsSet(ALIAS_KEY, NAME_ALIAS); REF_POOL=null; }
+let REF_POOL=null, REF_POOL_SRC=null;
+const nkey = x => normName(x).replace(/さん|様/g,'');
+function clientByKey(k){ return allKnownNames().find(c=>normName(c)===k) || ''; }
+// 紹介者欄の生テキスト → 採用する1人分の書き方（正規化キー）
+function refKeyOf(raw){
+  const s0=String(raw||'').trim();
+  if(!s0 || /^(なし|運営)/.test(s0)) return {key:'', multi:false};
+  const s=nkey(s0);
+  const nk=allKnownNames().map(n=>normName(n));
+  if(nk.includes(s)) return {key:s, multi:false};
+  const hits=nk.map(k=>[s.indexOf(k),k]).filter(([i])=>i>=0).sort((a,b)=>a[0]-b[0]);
+  if(hits.length) return {key:hits[0][1], multi:true};
+  const noParen=s0.replace(/[（(].*?[）)]/g,'');
+  return {key:nkey(noParen.split(/[・、,，\t\/]/)[0]), multi:/[・、,，\t\/]/.test(noParen) || noParen!==s0};
+}
+function refPool(){
+  if (REF_POOL && REF_POOL_SRC===SHEET_REFS) return REF_POOL;
+  const p=new Set(allKnownNames().map(n=>normName(n)));
+  Object.values(SHEET_REFS).forEach(r=>{ const k=refKeyOf(r).key; if(k) p.add(k); });
+  REF_POOL=p; REF_POOL_SRC=SHEET_REFS; return p;
+}
+// 正規化キー → 統一後の名前
+function resolveName(key){
+  if(!key) return {name:'', how:''};
+  if(NAME_ALIAS[key]!==undefined) return {name:NAME_ALIAS[key], how:'alias'};
+  const c=clientByKey(key); if(c) return {name:c, how:'client'};
+  const longer=[...refPool()].filter(x=>x!==key && x.length>key.length && x.startsWith(key));
+  if(longer.length===1){ const t=longer[0]; return {name: NAME_ALIAS[t]!==undefined?NAME_ALIAS[t]:(clientByKey(t)||t), how:'surname'}; }
+  return {name:key, how:'external'};
+}
+function canonName(x){ const v=String(x??'').trim(); if(!v) return ''; return resolveName(nkey(v)).name; }
 function parseRefRaw(raw){
   const s0=String(raw||'').trim();
   if(!s0) return {ref1:'', check:false};
   if(/^(なし|運営)/.test(s0)) return {ref1:'', check:false, note:'紹介者なし'};
-  const nk=allKnownNames().map(n=>[normName(n),n]);
-  const s=normName(s0).replace(/さん|様/g,'');
-  const exact=nk.find(([k])=>k===s); if(exact) return {ref1:exact[1], check:false};
-  const hits=nk.map(([k,n])=>[s.indexOf(k),n]).filter(([i])=>i>=0).sort((a,b)=>a[0]-b[0]);
-  if(hits.length) return {ref1:hits[0][1], check:true, note: hits.length>1?'名前が複数あり（先頭を採用）':'表記ゆれ'};
-  const cleaned=s0.replace(/[（(].*?[）)]/g,'').replace(/さん|様/g,'').split(/[・、,，\t\/]/)[0].trim();
-  return {ref1:cleaned, check:true, note:'クライアント一覧にない名前'};
+  const {key, multi}=refKeyOf(s0), r=resolveName(key);
+  const note = multi ? '名前が複数あり（先頭を採用）' : r.how==='surname' ? `名字だけ →「${r.name}」に統一` : r.how==='external' ? 'クライアント外の紹介者' : r.how==='alias' ? '統一ルールで変換' : '';
+  return {ref1:r.name, check: multi || r.how==='surname', note, key, how:r.how};
 }
 // 直紹介者・間接紹介者（手入力 → シートの紹介者欄。間接は「直紹介者の紹介者」を自動でたどる）
 function getRefs(name, depth=0){
   const m=CLIENT_REFS[name]||{};
   let ref1, src, check=false, note='';
-  if (m.ref1!==undefined && m.ref1!==null){ ref1=m.ref1; src='manual'; }
+  if (m.ref1!==undefined && m.ref1!==null){ ref1=canonName(m.ref1); src='manual'; }
   else { const p=parseRefRaw(SHEET_REFS[name]); ref1=p.ref1; src=SHEET_REFS[name]!==undefined?'sheet':'none'; check=p.check; note=p.note||''; }
   let ref2, ref2src='auto';
-  if (m.ref2!==undefined && m.ref2!==null){ ref2=m.ref2; ref2src='manual'; }
+  if (m.ref2!==undefined && m.ref2!==null){ ref2=canonName(m.ref2); ref2src='manual'; }
   else ref2 = (ref1 && depth<3 && isClientName(ref1) && ref1!==name) ? getRefs(ref1, depth+1).ref1 : '';
   return {ref1, ref2, src, ref2src, check, note, raw:SHEET_REFS[name]||''};
 }
@@ -1240,7 +1282,7 @@ async function loadSheetFunds(silent){
         if (String(refRow[0]||'').trim()==='紹介者') refs[nm] = String(refRow[1]||'').trim();
       });
     }
-    SHEET_FUNDS = out; SHEET_REFS = refs; SHEET_FUNDS_AT = new Date(); FUNDS_CACHE = {};
+    SHEET_FUNDS = out; SHEET_REFS = refs; REF_POOL = null; SHEET_FUNDS_AT = new Date(); FUNDS_CACHE = {};
     try { renderCliTab(); } catch(e) {}
     if (st) st.textContent = `✅ 個人タブ ${Object.keys(out).length}名分（入出金・紹介者）を読み込みました（${SHEET_FUNDS_AT.toLocaleTimeString('ja-JP')}）`;
     refreshAfterRateChange(); try{ renderUserRateTable(); }catch(e){}
@@ -1666,7 +1708,7 @@ function addUserRateName(){
 }
 function urMsg(t){ const e=document.getElementById('ur-msg'); if(!e) return; e.textContent=t; e.className='alert '+(t.startsWith('⚠')?'alert-error':'alert-success'); clearTimeout(urMsg._t); urMsg._t=setTimeout(()=>e.className='alert hidden',2500); }
 function exportRateSettings(){
-  const data = { version:1, exportedAt:new Date().toISOString(), plans:RATE_PLANS, users:USER_RATES, funders:FUNDERS, clientRefs:CLIENT_REFS, statement:lsGet(STMT_KEY,{}) };
+  const data = { version:1, exportedAt:new Date().toISOString(), plans:RATE_PLANS, users:USER_RATES, funders:FUNDERS, clientRefs:CLIENT_REFS, nameAlias:NAME_ALIAS, statement:lsGet(STMT_KEY,{}) };
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download=`報酬率設定_${new Date().toISOString().slice(0,10)}.json`; a.click();
@@ -1683,6 +1725,7 @@ function importRateSettings(file){
       if(d.statement) lsSet(STMT_KEY,d.statement);
       if(d.funders){ FUNDERS=d.funders; saveFunders(); }
       if(d.clientRefs){ CLIENT_REFS=d.clientRefs; saveClientRefs(); }
+      if(d.nameAlias){ NAME_ALIAS=d.nameAlias; saveAlias(); }
       renderPlanEditor(); renderUserRateTable(); refreshAfterRateChange(); urMsg('✅ 設定を読み込みました');
     }catch(e){ alert('読み込みに失敗しました: '+e.message); }
   };
@@ -2149,7 +2192,44 @@ function renderDistTab(){
   document.getElementById('distTbody').innerHTML=rows.join('');
 }
 
+function renderAliasTable(){
+  const tb=document.getElementById('al-tbody'); if(!tb) return;
+  const groups={};   // 統一後の名前 → { variants: { 書き方: {key, count, how} } }
+  Object.entries(SHEET_REFS).forEach(([client,raw])=>{
+    const s0=String(raw||'').trim(); if(!s0 || /^(なし|運営)/.test(s0)) return;
+    const p=parseRefRaw(s0); if(!p.ref1) return;
+    const g=groups[p.ref1]=groups[p.ref1]||{};
+    const v=g[s0]=g[s0]||{key:p.key, count:0, how:p.how, note:p.note}; v.count++;
+  });
+  const names=Object.keys(groups).sort((a,b)=>a.localeCompare(b,'ja'));
+  const cnt=document.getElementById('al-count'); if(cnt) cnt.textContent=`${names.length}名 / 書き方 ${names.reduce((a,n)=>a+Object.keys(groups[n]).length,0)}通り`;
+  if(!names.length){ tb.innerHTML='<tr class="empty"><td colspan="5">個人タブの読み込み後に表示されます</td></tr>'; return; }
+  tb.innerHTML = names.map(n=>{
+    const vs=Object.entries(groups[n]); const isC=isClientName(n);
+    return vs.map(([raw,v],i)=>{ const kJs=JSON.stringify(v.key).replace(/"/g,'&quot;');
+      return `<tr style="${i===0?'border-top:2px solid var(--border2)':''}">
+        <td>${i===0?`<strong>${escH(n)}</strong>`:''}</td>
+        <td style="font-size:12px;color:${isC?'var(--blue)':'var(--dim)'}">${i===0?(isC?'クライアント':'外部'):''}</td>
+        <td style="font-size:12.5px">「${escH(raw)}」<span style="color:var(--muted);font-size:11px">（${v.count}名）</span></td>
+        <td style="font-size:11px;color:${v.how==='surname'||String(v.note).startsWith('名前が複数')?'var(--gold)':'var(--muted)'}">${escH(v.note||'')}</td>
+        <td style="white-space:nowrap"><input class="inp" value="${escH(n)}" list="ce-names-all" onchange="setAlias(${kJs}, this.value)" title="この書き方を、どの名前として扱うか" style="width:150px;padding:4px 8px;font-size:12px"/>
+          ${NAME_ALIAS[v.key]!==undefined?`<button onclick="setAlias(${kJs}, null)" title="自動判定に戻す" style="background:transparent;border:none;color:var(--muted);cursor:pointer">↺</button>`:''}</td>
+      </tr>`; }).join('');
+  }).join('') + `<datalist id="ce-names-all">${[...new Set([...allKnownNames(), ...names])].map(x=>`<option value="${escH(x)}">`).join('')}</datalist>`;
+}
+function setAlias(key, val){
+  if(!key) return;
+  const v = val===null ? '' : String(val).trim();
+  if (val===null || !v) delete NAME_ALIAS[key];
+  else NAME_ALIAS[key] = canonNameNoAlias(v);
+  saveAlias(); FUNDS_CACHE={};
+  ceAfterChange(val===null ? '↺ 自動判定に戻しました' : `✅ 「${key}」を「${NAME_ALIAS[key]}」として扱います`);
+  const t=document.getElementById('al-msg'); if(t){ t.textContent=val===null?'↺ 自動判定に戻しました':`✅ 「${key}」→「${NAME_ALIAS[key]}」`; t.className='alert alert-success'; setTimeout(()=>t.className='alert hidden',2500); }
+}
+// 入力された統一後の名前：クライアントならその表記、それ以外はスペースなしに
+function canonNameNoAlias(v){ const k=nkey(v); return clientByKey(k) || k; }
 function renderCliTab(){
+  try{ renderAliasTable(); }catch(e){ console.warn(e); }
   let ents=Object.entries(S.clients);
   const q=(document.getElementById('cli-search')?.value||'').trim(), onlyChk=document.getElementById('cli-check')?.checked;
   const rows=ents.map(([name,c],i)=>({name,c,i,refs:getRefs(name)}))
