@@ -201,9 +201,16 @@ tr:hover td{background:rgba(255,255,255,.015)}
     </div>
     <div id="tab-clients" class="tab-pane">
       <div class="tbl-card">
-        <div class="tbl-hdr"><div class="tbl-ttl">👥 クライアント情報（運用状況）</div><div class="tbl-sub" id="cliCount">—</div></div>
-        <table><thead><tr><th>顧客番号</th><th>名前</th><th>グループ</th><th>銀行残高</th><th>口座残高（主要）</th></tr></thead>
-        <tbody id="cliTbody"><tr class="empty"><td colspan="5">データを読み込んでください</td></tr></tbody></table>
+        <div class="tbl-hdr"><div class="tbl-ttl">👥 クライアント情報（運用状況）</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <input class="inp" id="cli-search" placeholder="🔍 名前・紹介者で検索" oninput="renderCliTab()" style="width:180px;padding:6px 10px;font-size:12px"/>
+            <label style="font-size:12px;color:var(--dim);display:flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="cli-check" onchange="renderCliTab()" style="width:auto"/>紹介者 要確認のみ</label>
+            <div class="tbl-sub" id="cliCount">—</div>
+          </div></div>
+        <div id="cli-msg" class="alert hidden" style="margin:0 20px 10px"></div>
+        <p style="font-size:12px;color:var(--muted);padding:0 20px 8px">行の ✏️ から、紹介者・プラン・自己資金の割合・個別率・資金提供者を編集できます。</p>
+        <div style="overflow-x:auto"><table style="min-width:1100px"><thead><tr><th>顧客番号</th><th>名前</th><th>直紹介者</th><th>間接紹介者</th><th>今月の区分</th><th>資金提供者</th><th>銀行残高</th><th>口座残高（主要）</th><th></th></tr></thead>
+        <tbody id="cliTbody"><tr class="empty"><td colspan="9">データを読み込んでください</td></tr></tbody></table></div>
       </div>
     </div>
     <div id="tab-vex" class="tab-pane">
@@ -1059,6 +1066,12 @@ tr:hover td{background:rgba(255,255,255,.015)}
     </div>
   </div>
 </div>
+<div id="ce-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:210;align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)ceClose()">
+  <div style="background:var(--card);border:1px solid var(--border2);border-radius:16px;padding:24px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px"><div style="font-size:16px;font-weight:600" id="ce-title"></div><button class="btn btn-secondary btn-sm" onclick="ceClose()">✕ 閉じる</button></div>
+    <div id="ce-body"></div>
+  </div>
+</div>
 <div id="loading" class="hidden"><div class="sp"></div><div class="lmsg" id="lmsg">読み込み中...</div></div>
 <script>
 // ================================================================
@@ -1092,6 +1105,37 @@ let FUNDERS = lsGet(FUNDER_KEY, null) || { list:[{name:'SocialNavi', type:'socia
 function saveFunders(){ lsSet(FUNDER_KEY, FUNDERS); }
 function funderOf(n){ return (FUNDERS.list||[]).find(f=>f.name===n); }
 function userFunders(user){ return ((FUNDERS.links||{})[user]||[]).filter(l=>funderOf(l.funder)); }
+// ---------------- 紹介者 ----------------
+//  SHEET_REFS : 個人タブC3「紹介者」の生テキスト（自動読込）
+//  CLIENT_REFS: 画面で直した値 { 名前: { ref1?: string, ref2?: string } }（''＝なし、未設定＝自動）
+const REF_KEY='vex_client_refs';
+let CLIENT_REFS = lsGet(REF_KEY, {}) || {};
+let SHEET_REFS = {};
+function saveClientRefs(){ lsSet(REF_KEY, CLIENT_REFS); }
+function isClientName(n){ return !!n && allKnownNames().includes(n); }
+function parseRefRaw(raw){
+  const s0=String(raw||'').trim();
+  if(!s0) return {ref1:'', check:false};
+  if(/^(なし|運営)/.test(s0)) return {ref1:'', check:false, note:'紹介者なし'};
+  const nk=allKnownNames().map(n=>[normName(n),n]);
+  const s=normName(s0).replace(/さん|様/g,'');
+  const exact=nk.find(([k])=>k===s); if(exact) return {ref1:exact[1], check:false};
+  const hits=nk.map(([k,n])=>[s.indexOf(k),n]).filter(([i])=>i>=0).sort((a,b)=>a[0]-b[0]);
+  if(hits.length) return {ref1:hits[0][1], check:true, note: hits.length>1?'名前が複数あり（先頭を採用）':'表記ゆれ'};
+  const cleaned=s0.replace(/[（(].*?[）)]/g,'').replace(/さん|様/g,'').split(/[・、,，\t\/]/)[0].trim();
+  return {ref1:cleaned, check:true, note:'クライアント一覧にない名前'};
+}
+// 直紹介者・間接紹介者（手入力 → シートの紹介者欄。間接は「直紹介者の紹介者」を自動でたどる）
+function getRefs(name, depth=0){
+  const m=CLIENT_REFS[name]||{};
+  let ref1, src, check=false, note='';
+  if (m.ref1!==undefined && m.ref1!==null){ ref1=m.ref1; src='manual'; }
+  else { const p=parseRefRaw(SHEET_REFS[name]); ref1=p.ref1; src=SHEET_REFS[name]!==undefined?'sheet':'none'; check=p.check; note=p.note||''; }
+  let ref2, ref2src='auto';
+  if (m.ref2!==undefined && m.ref2!==null){ ref2=m.ref2; ref2src='manual'; }
+  else ref2 = (ref1 && depth<3 && isClientName(ref1) && ref1!==name) ? getRefs(ref1, depth+1).ref1 : '';
+  return {ref1, ref2, src, ref2src, check, note, raw:SHEET_REFS[name]||''};
+}
 // 個人の提供者がいる人だけ「資金提供プラン2」
 function usesPlan2(user){ return userFunders(user).some(l=>funderOf(l.funder).type==='individual'); }
 // 資金提供者の取り分を、各提供者の「率 × 金額」の比で分ける（金額が空欄なら1として扱う）
@@ -1184,18 +1228,21 @@ async function loadSheetFunds(silent){
     if (meta.error) throw new Error(meta.error.message);
     const known = new Map(allKnownNames().map(n=>[normName(n), n]));
     const tabs = meta.sheets.map(x=>x.properties.title).filter(t=>t!=='名義ﾃﾝﾌﾟﾚｰﾄ' && known.has(normName(t)));
-    const out={};
+    const out={}, refs={};
     for (let i=0;i<tabs.length;i+=12){
       const chunk=tabs.slice(i,i+12);
-      const vals = await sheetsBatch(CLIENT_ID, chunk.flatMap(t=>[`${t}!K3:M3`, `${t}!B21:AW400`]));
+      const vals = await sheetsBatch(CLIENT_ID, chunk.flatMap(t=>[`${t}!K3:M3`, `${t}!B21:AW400`, `${t}!B3:C3`]));
       chunk.forEach((t,j)=>{
-        const head=vals[j*2], body=vals[j*2+1];
+        const head=vals[j*3], body=vals[j*3+1], refRow=(vals[j*3+2][0]||[]);
         if (String((head[0]||[])[0]||'').trim()!=='自己資金') return;   // 個人タブの形式でないものは除外
-        out[known.get(normName(t))] = parsePersonTab(head, body);
+        const nm = known.get(normName(t));
+        out[nm] = parsePersonTab(head, body);
+        if (String(refRow[0]||'').trim()==='紹介者') refs[nm] = String(refRow[1]||'').trim();
       });
     }
-    SHEET_FUNDS = out; SHEET_FUNDS_AT = new Date(); FUNDS_CACHE = {};
-    if (st) st.textContent = `✅ 個人タブ ${Object.keys(out).length}名分を読み込みました（${SHEET_FUNDS_AT.toLocaleTimeString('ja-JP')}）`;
+    SHEET_FUNDS = out; SHEET_REFS = refs; SHEET_FUNDS_AT = new Date(); FUNDS_CACHE = {};
+    try { renderCliTab(); } catch(e) {}
+    if (st) st.textContent = `✅ 個人タブ ${Object.keys(out).length}名分（入出金・紹介者）を読み込みました（${SHEET_FUNDS_AT.toLocaleTimeString('ja-JP')}）`;
     refreshAfterRateChange(); try{ renderUserRateTable(); }catch(e){}
   }catch(e){
     if (st) st.textContent = '⚠️ 個人タブの読み込みに失敗：'+e.message;
@@ -1269,12 +1316,14 @@ function blendRates(ownPct){
 function getRates(name, ownPctOverride, ym){
   const u = name ? USER_RATES[name] : null;
   if (u && u.custom) return { funder:0, ...u.custom, _src:'custom', ownPct:getOwnPct(name, ym) };
+  if (u && ['own','fund','fund2'].includes(u.plan)) return { funder:0, ...RATE_PLANS[u.plan], _src:u.plan, _fixed:true, ownPct:getOwnPct(name, ym) };
   if (name && usesPlan2(name)) return { ...RATE_PLANS.fund2, _src:'fund2', ownPct:getOwnPct(name, ym) };
   const pct = isSet(ownPctOverride) ? clampPct(ownPctOverride) : getOwnPct(name, ym);
   return { ...blendRates(pct), _src: pct>=100?'own':pct<=0?'fund':'mix', ownPct:pct };
 }
 function rateLabel(r){
   if (!r) return '—';
+  if (r._fixed) return ({own:'自己資金',fund:'資金提供',fund2:'資金提供2'})[r._src]+'（固定）';
   if (r._src==='custom') return '個別設定';
   if (r._src==='own') return '自己資金';
   if (r._src==='fund') return '資金提供';
@@ -1414,6 +1463,7 @@ function renderUserRateTable(){
       <td>${rateBadge(r,false)}</td>
       <td><label style="font-size:11.5px;color:var(--dim);display:flex;gap:6px;align-items:center;margin-bottom:${custom?6:0}px;cursor:pointer"><input type="checkbox" ${custom?'checked':''} onchange="toggleUserCustom(${nJs},this.checked)" style="width:auto;accent-color:#a855f7"/>個別率</label>${customCells}</td>
       <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="ceOpen(${nJs})" title="紹介者・プラン・資金提供者などをまとめて編集">✏️</button>
         <button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="urToggleHistory(${nJs})" title="月ごとの入金と比率を一覧で編集">📅 月別${nMonthly?`(${nMonthly})`:''}</button>
         <button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenFor(${nJs})">🧾 明細</button>
         ${USER_RATES[n]?`<button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="clearUserRate(${nJs})" title="すべての設定を削除してシートのグループ欄に戻す">↺</button>`:''}
@@ -1455,6 +1505,107 @@ function updUserFunds(name, ym, key, v){
   const fc = fundsChain(name)[ym];
   urMsg(fc && fc.pct!==null ? `✅ ${name} ${ym.replace('-','年')}月：自己資金比率 ${+fc.pct.toFixed(1)}%` : `✅ ${name} ${ym.replace('-','年')}月の入金を保存しました`);
 }
+// ================================================================
+// ✏️ クライアント編集（紹介者・プラン・割合・個別率・資金提供者）
+// ================================================================
+let CE = null;
+function ceOpen(name){
+  if(!name) return;
+  const u=USER_RATES[name]||{};
+  CE = { name, plan: u.custom ? 'custom' : (u.plan||''), custom: u.custom ? {...u.custom} : null, funders: userFunders(name).map(l=>({...l})) };
+  document.getElementById('ce-title').textContent = `✏️ ${name}`;
+  ceRender();
+  const m=document.getElementById('ce-modal'); m.style.display='flex';
+}
+function ceClose(){ document.getElementById('ce-modal').style.display='none'; CE=null; }
+function ceRender(){
+  if(!CE) return;
+  const n=CE.name, u=USER_RATES[n]||{}, c=(S.clients||{})[n]||{}, m=CLIENT_REFS[n]||{};
+  const auto = (()=>{ const save=CLIENT_REFS[n]; delete CLIENT_REFS[n]; const r=getRefs(n); if(save) CLIENT_REFS[n]=save; return r; })();
+  const cur=getRefs(n), rt=getRates(n), src=ownPctSource(n);
+  const v = x => x===undefined||x===null ? '' : (x===''?'なし':x);
+  const sec = t => `<div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;text-transform:uppercase">${t}</div>`;
+  const names = allKnownNames().map(x=>`<option value="${escH(x)}">`).join('');
+  const base = CE.custom || Object.fromEntries(RATE_KEYS.map(k=>[k, rt[k]||0]));
+  document.getElementById('ce-body').innerHTML = `
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--dim)">
+      <span>顧客番号 <span class="mn">${escH(c.clientNo||'—')}</span></span><span>グループ ${escH(c.group||'（空欄）')}</span>
+      <span>今月の区分 ${rateBadge(rt)}</span>
+    </div>
+    <datalist id="ce-names">${names}</datalist>
+    ${sec('紹介者')}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><label class="lbl">直紹介者</label><input class="inp" id="ce-ref1" list="ce-names" value="${escH(v(m.ref1))}" placeholder="${escH(auto.ref1||'なし')}（自動）"/></div>
+      <div><label class="lbl">間接紹介者</label><input class="inp" id="ce-ref2" list="ce-names" value="${escH(v(m.ref2))}" placeholder="${escH((m.ref1!==undefined&&m.ref1!==null ? (isClientName(m.ref1)?getRefs(m.ref1).ref1:'') : auto.ref2)||'なし')}（自動）"/></div>
+    </div>
+    <p class="help">空欄＝自動（個人タブの紹介者欄と、直紹介者の紹介者から判定）。いない場合は「なし」と入力。
+      ${auto.raw?`<br>シートの紹介者欄：「${escH(auto.raw)}」${auto.check?` <span style="color:var(--gold)">⚠ 要確認：${escH(auto.note)}</span>`:''}`:'<br>シートの紹介者欄：空欄'}</p>
+    ${sec('プラン')}
+    <select class="inp" id="ce-plan" onchange="CE.plan=this.value; if(CE.plan==='custom'&&!CE.custom){CE.custom=Object.fromEntries(RATE_KEYS.map(k=>[k,getRates(CE.name)[k]||0]));} ceRender()" style="font-family:var(--sans)">
+      <option value="" ${CE.plan===''?'selected':''}>自動（入出金・資金提供者から判定）</option>
+      <option value="own" ${CE.plan==='own'?'selected':''}>自己資金プランで固定</option>
+      <option value="fund" ${CE.plan==='fund'?'selected':''}>資金提供プランで固定</option>
+      <option value="fund2" ${CE.plan==='fund2'?'selected':''}>資金提供プラン2で固定</option>
+      <option value="custom" ${CE.plan==='custom'?'selected':''}>個別率（この人だけの率）</option>
+    </select>
+    ${CE.plan==='custom' ? `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px">${RATE_KEYS.map(k=>`<label style="font-size:11px;color:var(--muted)">${RATE_NAMES[k]}（%）<input class="inp" type="number" step="0.1" value="${+((base[k]||0)*100).toFixed(2)}" oninput="CE.custom['${k}']=r6((parseFloat(this.value)||0)/100);document.getElementById('ce-sum').textContent=+(rateSum(CE.custom)*100).toFixed(2)+'%'" style="padding:5px 8px;font-family:var(--mono)"/></label>`).join('')}</div>
+      <p class="help">合計 <span id="ce-sum">${+(rateSum(base)*100).toFixed(2)}%</span>（100%にしてください）</p>` : ''}
+    ${sec('自己資金の割合')}
+    <div style="font-size:12.5px;color:var(--dim);margin-bottom:8px">今月：<strong style="color:var(--text)">${+src.pct.toFixed(1)}%</strong>（${srcText(src)}）${CE.plan&&CE.plan!==''?'　<span style="color:var(--muted)">※プランを固定・個別率にしている間は割合は使いません</span>':''}</div>
+    <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+      <div><label class="lbl">共通の割合（%）</label><input class="inp" id="ce-ownpct" type="number" min="0" max="100" value="${isSet(u.ownPct)?u.ownPct:''}" placeholder="${groupOwnPct(n)}" style="width:110px;font-family:var(--mono)"/></div>
+      <button class="btn btn-secondary btn-sm" onclick="ceOpenMonthly()">📅 月別の入出金・割合を開く</button>
+    </div>
+    <p class="help">月ごとの割合は個人タブの入出金から自動計算します。「共通の割合」は、入出金の記録がない月に使います（空欄＝グループ欄から判定）。</p>
+    ${sec('資金提供者')}
+    <div id="ce-funders">${CE.funders.map((x,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
+      <select class="inp" onchange="CE.funders[${i}].funder=this.value" style="flex:1;padding:5px 8px;font-size:12px;font-family:var(--sans)"><option value="">選択…</option>${(FUNDERS.list||[]).map(f=>`<option value="${escH(f.name)}" ${f.name===x.funder?'selected':''}>${escH(f.name)}（${f.type==='socialnavi'?'SocialNavi':'個人'}）</option>`).join('')}</select>
+      <input class="inp" type="number" min="0" placeholder="金額（任意）" value="${x.amount||''}" oninput="CE.funders[${i}].amount=this.value" style="width:120px;padding:5px 8px;font-size:12px;font-family:var(--mono)"/>
+      <button onclick="CE.funders.splice(${i},1);ceRender()" style="background:transparent;border:none;color:var(--muted);cursor:pointer">✕</button></div>`).join('') || '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">なし</div>'}</div>
+    <button class="btn btn-secondary btn-sm" onclick="if(!(FUNDERS.list||[]).length){alert('先に 🕸️紹介ネットワーク で資金提供者を登録してください');return;} CE.funders.push({funder:'',amount:''});ceRender()">＋ 資金提供者を追加</button>
+    <p class="help">個人の提供者がいると、プランが「自動」のときは資金提供プラン2で計算します。</p>
+    <div style="display:flex;gap:8px;margin-top:22px">
+      <button class="btn btn-primary" style="flex:1" onclick="ceSave()">💾 保存</button>
+      <button class="btn btn-secondary" onclick="ceReset()" title="この人の手入力をすべて消して自動に戻す">↺ すべて自動に戻す</button>
+    </div>`;
+}
+function ceSave(){
+  if(!CE) return;
+  const n=CE.name;
+  const norm = v => { v=String(v||'').trim(); return v==='' ? undefined : (v==='なし' ? '' : v); };
+  const r1=norm(document.getElementById('ce-ref1').value), r2=norm(document.getElementById('ce-ref2').value);
+  if (r1===undefined && r2===undefined) delete CLIENT_REFS[n];
+  else { CLIENT_REFS[n]={}; if(r1!==undefined) CLIENT_REFS[n].ref1=r1; if(r2!==undefined) CLIENT_REFS[n].ref2=r2; }
+  USER_RATES[n]=USER_RATES[n]||{};
+  const u=USER_RATES[n];
+  if (CE.plan==='custom'){
+    if (Math.abs(rateSum(CE.custom)-1)>0.0001 && !confirm(`個別率の合計が ${+(rateSum(CE.custom)*100).toFixed(2)}% です。このまま保存しますか？`)) return;
+    u.custom={...CE.custom}; delete u.plan;
+  } else { u.custom=null; if(CE.plan) u.plan=CE.plan; else delete u.plan; }
+  const op=document.getElementById('ce-ownpct').value; u.ownPct = isSet(op) ? clampPct(op) : null;
+  const fl=CE.funders.filter(x=>x.funder&&funderOf(x.funder)).map(x=>({funder:x.funder, amount:(+x.amount)||0}));
+  FUNDERS.links=FUNDERS.links||{}; if(fl.length) FUNDERS.links[n]=fl; else delete FUNDERS.links[n];
+  cleanupUserRate(n); saveUserRates(); saveFunders(); saveClientRefs();
+  ceClose(); ceAfterChange(`✅ ${n} を保存しました`);
+}
+function ceReset(){
+  if(!CE) return; const n=CE.name;
+  if(!confirm(`${n} の手入力（紹介者・プラン・割合・個別率・月別の手入力・資金提供者）をすべて消して自動に戻しますか？`)) return;
+  delete CLIENT_REFS[n]; delete USER_RATES[n]; if(FUNDERS.links) delete FUNDERS.links[n];
+  saveUserRates(); saveFunders(); saveClientRefs(); ceClose(); ceAfterChange(`↺ ${n} を自動に戻しました`);
+}
+function ceOpenMonthly(){
+  const n=CE.name; ceClose(); sw('settings');
+  const q=document.getElementById('ur-search'); if(q) q.value=n;
+  const o=renderUserRateTable._open||(renderUserRateTable._open=new Set()); o.add(n);
+  renderUserRateTable(); document.getElementById('ur-tbody')?.scrollIntoView({behavior:'smooth',block:'start'});
+}
+function ceAfterChange(msg){
+  refreshAfterRateChange();
+  try{ renderCliTab(); }catch(e){} try{ renderUserRateTable(); }catch(e){} try{ renderNetworkTab(); }catch(e){}
+  const t=document.getElementById('cli-msg'); if(t){ t.textContent=msg; t.className='alert alert-success'; setTimeout(()=>t.className='alert hidden',2500); }
+}
+
 function urToggleHistory(name){
   const o = renderUserRateTable._open || (renderUserRateTable._open = new Set());
   o.has(name) ? o.delete(name) : o.add(name); renderUserRateTable();
@@ -1494,7 +1645,7 @@ function cleanupUserRate(name){
   const u=USER_RATES[name]; if(!u) return;
   if (u.monthly){ Object.keys(u.monthly).forEach(k=>{ if(!isSet(u.monthly[k])) delete u.monthly[k]; }); if(!Object.keys(u.monthly).length) delete u.monthly; }
   if (u.funds){ Object.keys(u.funds).forEach(k=>{ const f=u.funds[k]||{}; if(!['own','loan','wd'].some(x=>isSet(f[x]))) delete u.funds[k]; }); if(!Object.keys(u.funds).length) delete u.funds; }
-  if (!isSet(u.ownPct) && !u.custom && !u.monthly && !u.funds) delete USER_RATES[name];
+  if (!isSet(u.ownPct) && !u.custom && !u.monthly && !u.funds && !u.plan) delete USER_RATES[name];
 }
 function addUserRateName(){
   const el=document.getElementById('ur-new'); const n=(el?.value||'').trim(); if(!n) return;
@@ -1502,7 +1653,7 @@ function addUserRateName(){
 }
 function urMsg(t){ const e=document.getElementById('ur-msg'); if(!e) return; e.textContent=t; e.className='alert '+(t.startsWith('⚠')?'alert-error':'alert-success'); clearTimeout(urMsg._t); urMsg._t=setTimeout(()=>e.className='alert hidden',2500); }
 function exportRateSettings(){
-  const data = { version:1, exportedAt:new Date().toISOString(), plans:RATE_PLANS, users:USER_RATES, funders:FUNDERS, statement:lsGet(STMT_KEY,{}) };
+  const data = { version:1, exportedAt:new Date().toISOString(), plans:RATE_PLANS, users:USER_RATES, funders:FUNDERS, clientRefs:CLIENT_REFS, statement:lsGet(STMT_KEY,{}) };
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));
   a.download=`報酬率設定_${new Date().toISOString().slice(0,10)}.json`; a.click();
@@ -1518,6 +1669,7 @@ function importRateSettings(file){
       RATE_PLANS=d.plans; USER_RATES=d.users; savePlans(); saveUserRates();
       if(d.statement) lsSet(STMT_KEY,d.statement);
       if(d.funders){ FUNDERS=d.funders; saveFunders(); }
+      if(d.clientRefs){ CLIENT_REFS=d.clientRefs; saveClientRefs(); }
       renderPlanEditor(); renderUserRateTable(); refreshAfterRateChange(); urMsg('✅ 設定を読み込みました');
     }catch(e){ alert('読み込みに失敗しました: '+e.message); }
   };
@@ -1550,6 +1702,7 @@ function stmtModeChanged(){
 function stmtUserChanged(){
   const n=document.getElementById('stmt-user')?.value.trim(); const el=document.getElementById('stmt-ownpct');
   if(el) el.value = '';
+  if(n && isClientName(n)){ const r=getRefs(n); document.getElementById('stmt-ref1').value=r.ref1||''; document.getElementById('stmt-ref2').value=r.ref2||''; }
   stmtRender();
 }
 // 明細データを組み立てる
@@ -1679,8 +1832,9 @@ function stmtOpenFor(name, opt={}){
   if(opt.mode){ document.getElementById('stmt-mode').value=opt.mode; }
   if(opt.month){ document.getElementById('stmt-month').value=opt.month; }
   if(opt.profit!==undefined){ document.getElementById('stmt-profit').value=opt.profit; }
-  if(opt.ref1!==undefined){ document.getElementById('stmt-ref1').value=opt.ref1; }
-  if(opt.ref2!==undefined){ document.getElementById('stmt-ref2').value=opt.ref2; }
+  const rf=getRefs(name);
+  document.getElementById('stmt-ref1').value = opt.ref1!==undefined && opt.ref1!=='' ? opt.ref1 : (rf.ref1||'');
+  document.getElementById('stmt-ref2').value = opt.ref2!==undefined && opt.ref2!=='' ? opt.ref2 : (rf.ref2||'');
   stmtModeChanged(); stmtRender();
 }
 </script>
@@ -1982,13 +2136,25 @@ function renderDistTab(){
 }
 
 function renderCliTab(){
-  const ents=Object.entries(S.clients);
-  document.getElementById('cliCount').textContent=ents.length+'名';
-  if(!ents.length){document.getElementById('cliTbody').innerHTML='<tr class="empty"><td colspan="5">データなし</td></tr>';return;}
-  document.getElementById('cliTbody').innerHTML=ents.map(([name,c],i)=>{
-    const col=COLORS[i%COLORS.length];
+  let ents=Object.entries(S.clients);
+  const q=(document.getElementById('cli-search')?.value||'').trim(), onlyChk=document.getElementById('cli-check')?.checked;
+  const rows=ents.map(([name,c],i)=>({name,c,i,refs:getRefs(name)}))
+    .filter(x=>!q || x.name.includes(q) || (x.refs.ref1||'').includes(q) || (x.refs.ref2||'').includes(q))
+    .filter(x=>!onlyChk || (x.refs.check && x.refs.src==='sheet'));
+  document.getElementById('cliCount').textContent=(rows.length!==ents.length?rows.length+' / ':'')+ents.length+'名';
+  if(!rows.length){document.getElementById('cliTbody').innerHTML='<tr class="empty"><td colspan="9">データなし</td></tr>';return;}
+  const refCell=(v,manual,chk,note)=> (v?escH(v):'<span style="color:var(--muted)">—</span>') + (manual?' <span style="font-size:10px;color:var(--blue)">手入力</span>':'') + (chk?` <span style="font-size:10px;color:var(--gold)" title="${escH(note)}">⚠要確認</span>`:'');
+  document.getElementById('cliTbody').innerHTML=rows.map(({name,c,i,refs})=>{
+    const col=COLORS[i%COLORS.length], nJs=JSON.stringify(name).replace(/"/g,'&quot;');
     const br=Object.entries(c.brokers||{}).filter(([,v])=>v>0).map(([b,v])=>`<span class="bchip">${b}: ¥${fmtS(v)}</span>`).join('')||'<span style="color:var(--muted);font-size:11px">—</span>';
-    return`<tr><td class="mn" style="font-size:11.5px;color:var(--muted)">${c.clientNo||'—'}</td><td><div class="mc"><div class="av" style="background:${col}22;color:${col}">${name[0]}</div>${name}</div></td><td style="font-size:12px;color:var(--dim)">${c.group||'資金提供'}</td><td class="mn">¥${fmt(c.bankBalance||0)}</td><td style="line-height:1.8">${br}</td></tr>`;
+    const fds=userFunders(name).map(l=>escH(l.funder)).join('<br>')||'<span style="color:var(--muted)">—</span>';
+    return`<tr style="cursor:pointer" ondblclick="ceOpen(${nJs})"><td class="mn" style="font-size:11.5px;color:var(--muted)">${c.clientNo||'—'}</td><td><div class="mc"><div class="av" style="background:${col}22;color:${col}">${name[0]}</div>${name}</div></td>
+      <td style="font-size:12.5px">${refCell(refs.ref1, refs.src==='manual', refs.check&&refs.src==='sheet', refs.note+(refs.raw?'（シート：'+refs.raw+'）':''))}</td>
+      <td style="font-size:12.5px">${refCell(refs.ref2, refs.ref2src==='manual', false, '')}</td>
+      <td>${rateBadge(getRates(name))}</td>
+      <td style="font-size:12px;color:#ec4899">${fds}</td>
+      <td class="mn">¥${fmt(c.bankBalance||0)}</td><td style="line-height:1.8">${br}</td>
+      <td><button class="btn btn-secondary btn-sm" style="padding:4px 10px;font-size:11.5px" onclick="ceOpen(${nJs})">✏️ 編集</button></td></tr>`;
   }).join('');
 }
 
@@ -2099,7 +2265,8 @@ function sw(name){
   const pane=document.getElementById(`tab-${name}`);
   if(pane) pane.classList.add('active');
   if(name==='fund') renderFundTab();
-  if(name==='network') { netLoadRemote().then(arr=>{ if(arr.length) renderNetworkTab(); }); renderNetworkTab(); }
+  if(name==='network') renderNetworkTab();
+  if(name==='clients') renderCliTab();
   if(name==='history') { histLoadRemote().then(arr=>{ if(arr.length) renderHistoryTab(); }); renderHistoryTab(); }
   if(name==='payment') renderBankTab();
   if(name==='vexstatus') renderVexStatus();
@@ -2729,6 +2896,8 @@ function vexNameChanged(){
     const p=getOwnPct(n);
     document.getElementById('vex-ownpct').value=p; document.getElementById('vex-ownpct-num').value=p;
     const rd=document.getElementById(p>=50?'vex-own':'vex-fund'); if(rd) rd.checked=true;
+    const rf=getRefs(n), a=document.getElementById('vex-ref1'), b=document.getElementById('vex-ref2');
+    if(a && !a.value) a.value=rf.ref1||''; if(b && !b.value) b.value=rf.ref2||'';
   }
   vexCalc();
 }
@@ -2757,8 +2926,8 @@ function vexLoadFromClients() {
     type: getOwnPct(name) >= 50 ? 'own' : 'fund',
     ownPct: getOwnPct(name),
     profit: 0,
-    ref1: '',
-    ref2: '',
+    ref1: getRefs(name).ref1||'',
+    ref2: getRefs(name).ref2||'',
     startYM: ''
   }));
   renderVexBatch();
@@ -3105,7 +3274,11 @@ async function netLoadRemote() {
 function netLoadLocal() {
   try { return JSON.parse(localStorage.getItem(NET_KEY)||'[]'); } catch(e){ return []; }
 }
-function netLoad() { return netLoadLocal(); }
+// 紹介ネットワークは「クライアント編集」と同じデータ（個人タブの紹介者＋手入力）を表示する
+function netLoad() {
+  return allKnownNames().map(n=>{ const r=getRefs(n); return {user:n, ref1:r.ref1||'', ref2:r.ref2||'', check:r.check&&r.src==='sheet'}; })
+    .filter(r=>r.ref1||r.ref2||userFunders(r.user).length);
+}
 function netStore(arr) { localStorage.setItem(NET_KEY, JSON.stringify(arr)); }
 
 async function netSave() {
@@ -3117,14 +3290,8 @@ async function netSave() {
   FUNDERS.links = FUNDERS.links||{};
   if (fl.length) FUNDERS.links[user]=fl; else delete FUNDERS.links[user];
   saveFunders(); refreshAfterRateChange();
-  const entry = { id: Date.now(), user, ref1, ref2, updatedAt: new Date().toISOString() };
-  // ローカル更新
-  const arr = netLoad();
-  const idx = arr.findIndex(r=>r.user===user);
-  if(idx>=0) arr[idx]=entry; else arr.push(entry);
-  netStore(arr);
-  // GAS保存（非同期・バックグラウンド）
-  gasPost('saveNetwork', entry).catch(()=>{});
+  CLIENT_REFS[user] = { ref1: ref1, ...(ref2 ? {ref2} : {}) };
+  saveClientRefs(); try{ renderCliTab(); }catch(e){}
   netMsg(`✅ 「${user}」の紹介関係・資金提供者を登録しました`,'success');
   NET_FORM_FUNDERS = []; renderNetFunderRows();
   renderNetworkTab();
@@ -3132,8 +3299,8 @@ async function netSave() {
 
 async function netDelete(user) {
   if(!confirm(`「${user}」の紹介関係を削除しますか？`)) return;
-  netStore(netLoad().filter(r=>r.user!==user));
-  gasPost('deleteNetwork', {user}).catch(()=>{});
+  CLIENT_REFS[user] = { ref1:'', ref2:'' }; saveClientRefs();
+  try{ renderCliTab(); }catch(e){}
   renderNetworkTab();
 }
 
@@ -3268,12 +3435,12 @@ function renderNetworkTab() {
       return `<tr>
         <td><div class="mc"><div class="av" style="background:${col}22;color:${col};width:26px;height:26px;border-radius:50%;font-size:11px">${r.user[0]}</div>${r.user}</div></td>
         <td style="color:${tc};font-size:12px">${typeLbl}</td>
-        <td style="font-size:13px">${r.ref1||'<span style="color:var(--muted)">—</span>'}</td>
+        <td style="font-size:13px">${r.ref1||'<span style="color:var(--muted)">—</span>'}${r.check?' <span style="font-size:10px;color:var(--gold)">⚠要確認</span>':''}</td>
         <td style="font-size:13px">${r.ref2||'<span style="color:var(--muted)">—</span>'}</td>
         <td style="font-size:12px;color:#ec4899">${userFunders(r.user).map(l=>escH(l.funder)+(l.amount?`<span style="color:var(--muted);font-size:10.5px"> ¥${fmt(l.amount)}</span>`:'')).join('<br>')||'<span style="color:var(--muted)">—</span>'}</td>
         <td style="font-size:11.5px;color:var(--muted);font-family:var(--mono)">${chain}</td>
         <td style="white-space:nowrap">
-          <button onclick="netEdit('${r.user}')" style="background:transparent;border:none;color:var(--blue);cursor:pointer;font-size:12px;padding:2px 6px">✏️</button>
+          <button onclick="ceOpen(${JSON.stringify(r.user).replace(/"/g,'&quot;')})" style="background:transparent;border:none;color:var(--blue);cursor:pointer;font-size:12px;padding:2px 6px" title="編集">✏️</button>
           <button onclick="netDelete('${r.user}')" style="background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px;padding:2px 6px">✕</button>
         </td>
       </tr>`;
