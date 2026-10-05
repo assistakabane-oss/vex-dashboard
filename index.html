@@ -993,8 +993,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <div class="st">👤 ユーザー別 報酬率</div>
         <p style="font-size:13px;color:var(--dim);line-height:1.8;margin-bottom:12px">
           <strong>自己資金比率</strong>：貸付（資金提供）と自己資金が混ざる人は割合を入力 → 2プランを加重平均します（例：60% → ユーザー率 30%×0.6 + 15%×0.4 = 24%）。<br>
-          <strong>月ごとの入金</strong>：左上で月を選び、その月の<strong>自己資金の入金額・貸付の入金額・出金額</strong>を入力すると比率を自動計算します。出金は<strong>貸付から差し引き、自己資金はそのまま</strong>残します。貸付より出金が多い月は、<strong>余った出金を翌月に繰り越し</strong>、翌月の貸付から差し引きます。<br>
-          　例：自己資金100万・貸付50万・出金20万 → 自己100万／貸付30万 → 自己資金比率 76.9%。出金70万なら貸付0・20万を翌月へ繰越。入力のない月は前の月の比率を引き継ぎます。「📅 月別」で1人分を一覧で確認・編集できます。<br>
+          <strong>月ごとの入金（自動）</strong>：クライアントシートの<strong>個人タブ</strong>から月ごとに自動で読み込みます。<br>
+          　貸付＝<strong>銀行入金</strong>／返金＝<strong>銀行出金</strong>／自己資金＝<strong>証券会社への入金合計 − 銀行入金</strong>（K3〜M3の自己資金額が上限、「なし」の人は0）。<br>
+          　返金は貸付から差し引き、貸付より多い分は翌月へ繰り越します（自己資金からは引きません）。入出金のない月は前の月の比率を引き継ぎます。<br>
+          　シートと違う値にしたい月だけ、金額や%を手入力すると上書きできます（左上で月を選ぶか「📅 月別」から）。<br>
           <strong>個別率</strong>：特定の人だけ率が違う場合にチェックし、5項目を直接入力します（比率より優先）。
         </p>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">
@@ -1007,6 +1009,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <button class="btn btn-secondary btn-sm" onclick="exportRateSettings()">📤 設定を書き出し</button>
           <label class="btn btn-secondary btn-sm" style="cursor:pointer">📥 設定を読み込み<input type="file" accept=".json,application/json" onchange="importRateSettings(this.files[0]);this.value=''" style="display:none"/></label>
           <span class="tbl-sub" id="ur-count"></span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;font-size:12px;color:var(--dim)">
+          <button class="btn btn-secondary btn-sm" onclick="loadSheetFunds()">🔄 個人タブから入出金を再読込</button>
+          <span id="sf-status">個人タブは接続時に自動で読み込みます</span>
         </div>
         <div id="ur-msg" class="alert hidden" style="margin-bottom:10px"></div>
         <div style="overflow-x:auto">
@@ -1066,20 +1072,109 @@ function fundsCalc(f){
   const tot=ownNet+loanNet;
   return { own, loan, wd, ownNet, loanNet, tot, pct: tot>0 ? r6(ownNet/tot*100) : null };
 }
-// 入金を月順に計算（出金が貸付より多い月は、余った出金を翌月へ繰り越し。自己資金からは引かない）
-function fundsChain(u){
-  const out={}; if(!u||!u.funds) return out;
+// ================================================================
+// 📥 クライアントシートの個人タブから入出金を読み込む
+//   貸付 = 銀行入金（F列）／ 返金 = 銀行出金（G列）
+//   自己資金 = 証券会社への入金合計 − 銀行入金（K3〜M3 の自己資金額が上限、「なし」の人は0）
+// ================================================================
+let SHEET_FUNDS = {};   // { 名前: { hasOwn, ownCap, months: { 'YYYY-MM': {own, loan, wd, brIn, brOut} } } }
+let SHEET_FUNDS_AT = null;
+let FUNDS_CACHE = {};
+function normName(n){ return String(n||'').replace(/[\s　]/g,''); }
+function parseYM(d){
+  const s=String(d||'').trim();
+  let m=s.match(/^(\d{4})[\/\-.年](\d{1,2})/); if(m) return ymKey(+m[1],+m[2]);
+  if(/^\d{5}(\.\d+)?$/.test(s)){ const dt=new Date(Math.round((+s-25569)*86400000)); return ymKey(dt.getUTCFullYear(), dt.getUTCMonth()+1); }
+  return null;
+}
+const yen = x => parseFloat(String(x??'').replace(/[¥,\s円]/g,'').replace(/^-?$/,'0').replace(/[^\d.\-]/g,''))||0;
+async function sheetsBatch(sheetId, ranges){
+  const qs = ranges.map(r=>{ const i=r.indexOf('!'); return 'ranges='+encodeURIComponent(r.slice(0,i))+'!'+r.slice(i+1); }).join('&');
+  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?${qs}&key=${encodeURIComponent(S.apiKey)}`);
+  const j = await res.json(); if (j.error) throw new Error(j.error.message);
+  return (j.valueRanges||[]).map(v=>v.values||[]);
+}
+function parsePersonTab(head, body){
+  const own = (head[0]||[]);
+  const hasOwn = String(own[1]||'').trim()==='あり';
+  const ownCap = hasOwn ? yen(own[2]) : 0;
+  // body = B21:AW… → [0]=21行目（項目名） [1]=22行目（入金/出金） [2…]=データ
+  const h1 = body[0]||[], h2 = body[1]||[];
+  const bankInCol = h1.findIndex(x=>String(x).trim()==='銀行入金');
+  const bankOutCol = h1.findIndex(x=>String(x).trim()==='銀行出金');
+  const inCols=[], outCols=[];
+  h2.forEach((x,i)=>{ const t=String(x).trim(); if(t==='入金') inCols.push(i); if(t==='出金') outCols.push(i); });
+  const agg={};
+  body.slice(2).forEach(r=>{
+    const ym=parseYM(r[0]); if(!ym) return;
+    const a=agg[ym]=agg[ym]||{brIn:0,brOut:0,loan:0,wd:0};
+    inCols.forEach(i=>a.brIn+=yen(r[i])); outCols.forEach(i=>a.brOut+=yen(r[i]));
+    if(bankInCol>=0) a.loan+=yen(r[bankInCol]); if(bankOutCol>=0) a.wd+=yen(r[bankOutCol]);
+  });
+  let remain = ownCap; const months={};
+  Object.keys(agg).sort().forEach(k=>{
+    const a=agg[k]; const own = hasOwn ? Math.min(Math.max(0, a.brIn - a.loan), remain) : 0;
+    remain -= own;
+    if (own||a.loan||a.wd) months[k]={own, loan:a.loan, wd:a.wd, brIn:a.brIn, brOut:a.brOut};
+  });
+  return { hasOwn, ownCap, ownCounted: ownCap-remain, months };
+}
+async function loadSheetFunds(silent){
+  if (!S.apiKey || S.isDemo) return;
+  const st=document.getElementById('sf-status');
+  if (st) st.textContent='個人タブを読み込み中…';
+  try{
+    const meta = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${CLIENT_ID}?fields=sheets.properties.title&key=${encodeURIComponent(S.apiKey)}`).then(r=>r.json());
+    if (meta.error) throw new Error(meta.error.message);
+    const known = new Map(allKnownNames().map(n=>[normName(n), n]));
+    const tabs = meta.sheets.map(x=>x.properties.title).filter(t=>t!=='名義ﾃﾝﾌﾟﾚｰﾄ' && known.has(normName(t)));
+    const out={};
+    for (let i=0;i<tabs.length;i+=12){
+      const chunk=tabs.slice(i,i+12);
+      const vals = await sheetsBatch(CLIENT_ID, chunk.flatMap(t=>[`${t}!K3:M3`, `${t}!B21:AW400`]));
+      chunk.forEach((t,j)=>{
+        const head=vals[j*2], body=vals[j*2+1];
+        if (String((head[0]||[])[0]||'').trim()!=='自己資金') return;   // 個人タブの形式でないものは除外
+        out[known.get(normName(t))] = parsePersonTab(head, body);
+      });
+    }
+    SHEET_FUNDS = out; SHEET_FUNDS_AT = new Date(); FUNDS_CACHE = {};
+    if (st) st.textContent = `✅ 個人タブ ${Object.keys(out).length}名分を読み込みました（${SHEET_FUNDS_AT.toLocaleTimeString('ja-JP')}）`;
+    refreshAfterRateChange(); try{ renderUserRateTable(); }catch(e){}
+  }catch(e){
+    if (st) st.textContent = '⚠️ 個人タブの読み込みに失敗：'+e.message;
+    if (!silent) console.warn('loadSheetFunds', e);
+  }
+}
+// シートの値と手入力の値をまとめる（その月に手入力があれば手入力を優先）
+function mergedFunds(name){
+  const u = USER_RATES[name]||{}, sh = (SHEET_FUNDS[name]||{}).months||{}, man = u.funds||{};
+  const keys = [...new Set([...Object.keys(sh), ...Object.keys(man)])].sort(), out={};
+  keys.forEach(k=>{
+    const m=man[k]||{}, b=sh[k]||{own:0,loan:0,wd:0};
+    const anyManual = ['own','loan','wd'].some(x=>isSet(m[x]));
+    if (!anyManual && !sh[k]) return;
+    // 手入力した項目だけ上書き、それ以外は個人タブの値
+    out[k]={ own: isSet(m.own)?+m.own:b.own, loan: isSet(m.loan)?+m.loan:b.loan, wd: isSet(m.wd)?+m.wd:b.wd, src: anyManual?'manual':'sheet' };
+  });
+  return out;
+}
+// 入金を月順に計算（返金＝銀行出金は貸付から差し引き、貸付より多い分は翌月へ繰り越し。自己資金からは引かない）
+function fundsChain(name){
+  if (typeof name !== 'string') name = '';
+  if (FUNDS_CACHE[name]) return FUNDS_CACHE[name];
+  const out={}, f=mergedFunds(name);
   let carry=0;
-  Object.keys(u.funds).sort().forEach(k=>{
-    const f=u.funds[k]||{}, own=+f.own||0, loan=+f.loan||0, wd=+f.wd||0;
+  Object.keys(f).sort().forEach(k=>{
+    const {own, loan, wd, src}=f[k];
     if(!own && !loan && !wd && !carry) return;
     const carryIn=carry, wdTot=wd+carryIn;
     const loanNet=Math.max(0, loan-wdTot);
     carry=Math.max(0, wdTot-loan);
     const ownNet=own, tot=ownNet+loanNet;
-    out[k]={ own, loan, wd, carryIn, wdTot, ownNet, loanNet, carryOut:carry, tot, pct: tot>0 ? r6(ownNet/tot*100) : null };
+    out[k]={ own, loan, wd, src, carryIn, wdTot, ownNet, loanNet, carryOut:carry, tot, pct: tot>0 ? r6(ownNet/tot*100) : null };
   });
-  return out;
+  return FUNDS_CACHE[name]=out;
 }
 function fundsNote(fc){
   if(!fc) return '';
@@ -1089,27 +1184,24 @@ function fundsNote(fc){
   if(fc.carryOut) parts.push(`<span style="color:var(--gold)">翌月へ繰越 ¥${fmt(fc.carryOut)}</span>`);
   return parts.length ? '（'+parts.join('・')+'）' : '';
 }
-// ある月にその月固有の設定があれば返す（入金額 → 手入力の%）
-function monthOwnPct(u, k){
-  if(!u) return null;
-  const fc = fundsChain(u)[k];
-  if (fc && fc.pct!==null) return {pct:clampPct(fc.pct), from:'funds', fc};
-  if (u.monthly && isSet(u.monthly[k])) return {pct:clampPct(u.monthly[k]), from:'month'};
+// ある月の比率（① 手入力の入金額 → ② 手入力の% → ③ シートの入金額）
+function monthOwnPct(u, ch, k){
+  const fc = ch[k];
+  if (fc && fc.src==='manual' && fc.pct!==null) return {pct:clampPct(fc.pct), from:'funds', fc};
+  if (u.monthly && isSet(u.monthly[k])) return {pct:clampPct(u.monthly[k]), from:'month', fc};
+  if (fc && fc.pct!==null) return {pct:clampPct(fc.pct), from:'sheet', fc};
   return null;
 }
-// 月ごとの自己資金比率
-//  ① その月の入金額 → ② その月の手入力% → ③ 前の月から引き継ぎ → ④ 共通の比率 → ⑤ シートのグループ欄
+// 月ごとの自己資金比率：その月の値 → 前の月から引き継ぎ → 共通の比率 → 運用状況シートのグループ欄
 function ownPctSource(name, ym){
   ym = ym || curYM();
-  const u = USER_RATES[name];
-  if (u){
-    const here = monthOwnPct(u, ym);
-    if (here) return {...here, ym};
-    const keys = [...new Set([...Object.keys(u.funds||{}), ...Object.keys(u.monthly||{})])].filter(k=>k<ym).sort().reverse();
-    for (const k of keys){ const m=monthOwnPct(u,k); if(m) return {pct:m.pct, from:'carry', ym:k}; }
-    if (isSet(u.ownPct)) return {pct:clampPct(u.ownPct), from:'base'};
-  }
-  return {pct:groupOwnPct(name), from:'group'};
+  const u = USER_RATES[name]||{}, ch = fundsChain(name);
+  const here = monthOwnPct(u, ch, ym);
+  if (here) return {...here, ym};
+  const keys = [...new Set([...Object.keys(ch), ...Object.keys(u.monthly||{})])].filter(k=>k<ym).sort().reverse();
+  for (const k of keys){ const m=monthOwnPct(u,ch,k); if(m) return {pct:m.pct, from:'carry', ym:k, fc:ch[ym]}; }
+  if (isSet(u.ownPct)) return {pct:clampPct(u.ownPct), from:'base', fc:ch[ym]};
+  return {pct:groupOwnPct(name), from:'group', fc:ch[ym]};
 }
 function getOwnPct(name, ym){ return ownPctSource(name, ym).pct; }
 function blendRates(ownPct){
@@ -1145,7 +1237,7 @@ function allKnownNames(){
   Object.keys(USER_RATES).forEach(n=>s.add(n));
   return [...s].filter(Boolean).sort((a,b)=>a.localeCompare(b,'ja'));
 }
-function saveUserRates(){ lsSet(USER_RATE_KEY, USER_RATES); }
+function saveUserRates(){ FUNDS_CACHE = {}; lsSet(USER_RATE_KEY, USER_RATES); }
 function savePlans(){ lsSet(PLAN_KEY, RATE_PLANS); }
 function refreshAfterRateChange(){
   try { renderAll(); } catch(e){}
@@ -1201,14 +1293,15 @@ function renderUrMonthSelect(){
   el.value=cur; el.dataset.init='1';
 }
 function srcText(src){
-  if (src.from==='funds') return '入金額から計算';
+  if (src.from==='funds') return '手入力の入金額から計算';
+  if (src.from==='sheet') return '個人タブの入出金から計算';
   if (src.from==='month') return '手入力の%';
   if (src.from==='carry') return `${src.ym.split('-')[0]}/${+src.ym.split('-')[1]}月から引継ぎ`;
   if (src.from==='base') return '共通の値';
   return 'シートの値';
 }
-function amtInput(nJs, ym, key, val, w=92){
-  return `<input type="number" min="0" step="1" value="${val||''}" placeholder="0" onchange="updUserFunds(${nJs},'${ym}','${key}',this.value)" class="inp" style="width:${w}px;padding:4px 6px;font-size:11.5px;font-family:var(--mono);text-align:right"/>`;
+function amtInput(nJs, ym, key, val, w=92, ph=0){
+  return `<input type="number" min="0" step="1" value="${isSet(val)?val:''}" placeholder="${ph?fmt(ph):0}" title="${ph?'個人タブの値：¥'+fmt(ph)+'（入力すると上書き）':''}" onchange="updUserFunds(${nJs},'${ym}','${key}',this.value)" class="inp" style="width:${w}px;padding:4px 6px;font-size:11.5px;font-family:var(--mono);text-align:right"/>`;
 }
 function renderUserRateTable(){
   const tbody = document.getElementById('ur-tbody'); if(!tbody) return;
@@ -1216,7 +1309,7 @@ function renderUserRateTable(){
   const selYM = document.getElementById('ur-month')?.value || '';
   const hdr = document.getElementById('ur-pct-hdr');
   if (hdr) hdr.innerHTML = selYM
-    ? `${selYM.split('-')[0]}年${+selYM.split('-')[1]}月の入金（円）<br><span style="font-weight:400;color:var(--muted)">自己資金 ／ 貸付 ／ 出金 → 自己資金比率</span>`
+    ? `${selYM.split('-')[0]}年${+selYM.split('-')[1]}月の入金（円）<br><span style="font-weight:400;color:var(--muted)">自己資金 ／ 貸付（銀行入金）／ 返金（銀行出金）→ 自己資金比率</span>`
     : '自己資金比率（共通）';
   const q = (document.getElementById('ur-search')?.value||'').trim();
   const onlySet = document.getElementById('ur-only-set')?.checked;
@@ -1235,12 +1328,13 @@ function renderUserRateTable(){
     const custom = u.custom;
     let pctCell;
     if (selYM){
-      const f=(u.funds||{})[selYM]||{}, fc=fundsChain(u)[selYM], src=ownPctSource(n, selYM);
+      const f=(u.funds||{})[selYM]||{}, fc=fundsChain(n)[selYM], src=ownPctSource(n, selYM), sh=((SHEET_FUNDS[n]||{}).months||{})[selYM]||{};
+      const manualFunds = fc && fc.src==='manual';
       const mv=(u.monthly||{})[selYM];
       pctCell = `<div style="display:flex;gap:4px;align-items:center;flex-wrap:nowrap;white-space:nowrap">
-          ${amtInput(nJs,selYM,'own',f.own)}${amtInput(nJs,selYM,'loan',f.loan)}${amtInput(nJs,selYM,'wd',f.wd,80)}
+          ${amtInput(nJs,selYM,'own',f.own,92,sh.own)}${amtInput(nJs,selYM,'loan',f.loan,92,sh.loan)}${amtInput(nJs,selYM,'wd',f.wd,80,sh.wd)}
           <span style="font-size:12px;color:var(--muted)">→</span>
-          <input type="number" min="0" max="100" value="${fc&&fc.pct!==null?'':(isSet(mv)?mv:'')}" placeholder="${+src.pct.toFixed(1)}" onchange="updUserMonthPct(${nJs},'${selYM}',this.value)" class="inp" style="width:62px;padding:4px 6px;font-size:12px;font-family:var(--mono);${src.from==='funds'?'color:var(--green)':''}" ${fc&&fc.pct!==null?'disabled title="入金額から自動計算"':'title="入金額が分からない場合だけ%を直接入力"'}/><span style="font-size:11px;color:var(--muted)">%</span>
+          <input type="number" min="0" max="100" value="${manualFunds?'':(isSet(mv)?mv:'')}" placeholder="${+src.pct.toFixed(1)}" onchange="updUserMonthPct(${nJs},'${selYM}',this.value)" class="inp" style="width:62px;padding:4px 6px;font-size:12px;font-family:var(--mono)" ${manualFunds?'disabled title="入金額から自動計算"':'title="%を直接入力すると、個人タブの値より優先されます"'}/><span style="font-size:11px;color:var(--muted)">%</span>
         </div>
         <div style="font-size:10px;color:var(--muted);margin-top:3px">${custom?'個別率を適用中':srcText(src)}${fundsNote(fc)}</div>`;
     } else {
@@ -1269,15 +1363,15 @@ function renderUserRateTable(){
     // 月別一覧（年を切り替えて12ヶ月分）
     const years=[...new Set(urMonthOptions().map(k=>+k.split('-')[0]))].sort();
     const yr = (urToggleHistory._yr||{})[n] || (selYM?+selYM.split('-')[0]:years[years.length-1]);
-    const chain = fundsChain(u);
+    const chain = fundsChain(n), shm=(SHEET_FUNDS[n]||{}).months||{};
     const rows = Array.from({length:12},(_,i)=>{
       const k=ymKey(yr,i+1), f=(u.funds||{})[k]||{}, fc=chain[k], src=ownPctSource(n,k), mv=(u.monthly||{})[k];
-      const auto = fc&&fc.pct!==null;
+      const auto = fc&&fc.src==='manual'&&fc.pct!==null, sh=shm[k]||{};
       return `<tr style="${src.from==='carry'||src.from==='base'||src.from==='group'?'opacity:.65':''}">
         <td style="white-space:nowrap">${i+1}月</td>
-        <td>${amtInput(nJs,k,'own',f.own,110)}</td><td>${amtInput(nJs,k,'loan',f.loan,110)}</td><td>${amtInput(nJs,k,'wd',f.wd,100)}</td>
+        <td>${amtInput(nJs,k,'own',f.own,110,sh.own)}</td><td>${amtInput(nJs,k,'loan',f.loan,110,sh.loan)}</td><td>${amtInput(nJs,k,'wd',f.wd,100,sh.wd)}</td>
         <td><input type="number" min="0" max="100" value="${auto?'':(isSet(mv)?mv:'')}" placeholder="${+src.pct.toFixed(1)}" onchange="updUserMonthPct(${nJs},'${k}',this.value)" class="inp" style="width:64px;padding:3px 6px;font-size:11.5px;font-family:var(--mono)" ${auto?'disabled':''}/></td>
-        <td style="font-family:var(--mono);font-size:12px;color:${src.from==='funds'||src.from==='month'?'var(--green)':'var(--muted)'}">${+src.pct.toFixed(1)}%</td>
+        <td style="font-family:var(--mono);font-size:12px;color:${['funds','month','sheet'].includes(src.from)?'var(--green)':'var(--muted)'}">${+src.pct.toFixed(1)}%</td>
         <td style="font-size:11px;color:var(--muted)">${srcText(src)}${fundsNote(fc)}</td>
       </tr>`;
     }).join('');
@@ -1287,7 +1381,7 @@ function renderUserRateTable(){
         ${years.map(y=>`<button class="pill${y===yr?' active':''}" style="padding:3px 10px;font-size:11px" onclick="urHistYear(${nJs},${y})">${y}年</button>`).join('')}
         <span style="font-size:11px;color:var(--muted)">入金が分からない月は「%」に直接入力も可。どちらも空欄の月は前の月の比率を引き継ぎます。</span>
       </div>
-      <table style="min-width:760px"><thead><tr><th>月</th><th>自己資金 入金</th><th>貸付 入金</th><th>出金</th><th>%（手入力）</th><th>適用比率</th><th>根拠</th></tr></thead><tbody>${rows}</tbody></table>
+      <table style="min-width:760px"><thead><tr><th>月</th><th>自己資金 入金</th><th>貸付（銀行入金）</th><th>返金（銀行出金）</th><th>%（手入力）</th><th>適用比率</th><th>根拠</th></tr></thead><tbody>${rows}</tbody></table>
     </td></tr>`;
   }).join('');
 }
@@ -1296,9 +1390,9 @@ function updUserFunds(name, ym, key, v){
   USER_RATES[name] = USER_RATES[name]||{};
   USER_RATES[name].funds = USER_RATES[name].funds||{};
   const f = USER_RATES[name].funds[ym] = USER_RATES[name].funds[ym]||{};
-  f[key] = isSet(v) ? Math.max(0, parseFloat(v)||0) : 0;
+  f[key] = isSet(v) ? Math.max(0, parseFloat(v)||0) : null;
   cleanupUserRate(name); saveUserRates(); renderUserRateTable(); refreshAfterRateChange();
-  const fc = fundsChain(USER_RATES[name])[ym];
+  const fc = fundsChain(name)[ym];
   urMsg(fc && fc.pct!==null ? `✅ ${name} ${ym.replace('-','年')}月：自己資金比率 ${+fc.pct.toFixed(1)}%` : `✅ ${name} ${ym.replace('-','年')}月の入金を保存しました`);
 }
 function urToggleHistory(name){
@@ -1339,7 +1433,7 @@ function clearUserRate(name){
 function cleanupUserRate(name){
   const u=USER_RATES[name]; if(!u) return;
   if (u.monthly){ Object.keys(u.monthly).forEach(k=>{ if(!isSet(u.monthly[k])) delete u.monthly[k]; }); if(!Object.keys(u.monthly).length) delete u.monthly; }
-  if (u.funds){ Object.keys(u.funds).forEach(k=>{ if(!fundsCalc(u.funds[k])) delete u.funds[k]; }); if(!Object.keys(u.funds).length) delete u.funds; }
+  if (u.funds){ Object.keys(u.funds).forEach(k=>{ const f=u.funds[k]||{}; if(!['own','loan','wd'].some(x=>isSet(f[x]))) delete u.funds[k]; }); if(!Object.keys(u.funds).length) delete u.funds; }
   if (!isSet(u.ownPct) && !u.custom && !u.monthly && !u.funds) delete USER_RATES[name];
 }
 function addUserRateName(){
@@ -1672,7 +1766,7 @@ async function refreshAll(){
   try{
     const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AE60`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:R100`)]);
     S.members=parseSales(sv);S.clients=parseClients(cv);
-    hideLoad();renderAll();
+    hideLoad();renderAll();loadSheetFunds(true);
   }catch(e){hideLoad();alert('エラー: '+e.message);}
 }
 
@@ -1720,6 +1814,7 @@ function initApp(){
   document.getElementById('memCount').textContent=S.members.length+' 名';
   document.getElementById('connLabel').textContent=S.isDemo?'デモモード':'接続済み';
   renderYrPills();renderMoPills();renderAll();loadSaved();
+  loadSheetFunds(true);
 }
 function renderAll(){renderStats();renderChart();renderMainTable();renderDistTab();renderCliTab();renderSettingsTab();renderCurRatio();try{renderPlanEditor();renderUserRateTable();renderPlanLabels();}catch(e){}}
 
