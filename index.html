@@ -710,12 +710,12 @@ tr:hover td{background:rgba(255,255,255,.015)}
             </div>
             <div class="fg">
               <label class="lbl">直紹介者名（任意）</label>
-              <input class="inp" id="hist-ref1" placeholder="例：鈴木一郎" list="hist-ref1-list"/>
+              <input class="inp" id="hist-ref1" placeholder="例：鈴木一郎" list="hist-ref1-list" oninput="histCalcPreview()"/>
               <datalist id="hist-ref1-list"></datalist>
             </div>
             <div class="fg">
               <label class="lbl">間接紹介者名（任意）</label>
-              <input class="inp" id="hist-ref2" placeholder="例：佐藤花子" list="hist-ref2-list"/>
+              <input class="inp" id="hist-ref2" placeholder="例：佐藤花子" list="hist-ref2-list" oninput="histCalcPreview()"/>
               <datalist id="hist-ref2-list"></datalist>
             </div>
             <div class="fg" style="margin-bottom:0">
@@ -1312,8 +1312,20 @@ function blendRates(ownPct){
   RATE_KEYS.forEach(k=> out[k]=r6((o[k]||0)*p + (f[k]||0)*(1-p)));
   return out;
 }
-// 名前から適用率を取得（ownPctOverride を渡すとその比率で計算。個別率は常に優先）
+// 間接紹介者がいない場合は、間接紹介の取り分を直紹介者に上乗せする
+function mergeRefRates(r, ref1, ref2){
+  if (ref1 && !ref2 && (r.ref2||0)>0) return { ...r, ref1:r6((r.ref1||0)+(r.ref2||0)), ref2:0, _refMerged:true };
+  return r;
+}
+// 名前から適用率を取得（紹介者ルール込み）
 function getRates(name, ownPctOverride, ym){
+  const r = getRatesRaw(name, ownPctOverride, ym);
+  if (!name) return r;
+  const f = getRefs(name);
+  return mergeRefRates(r, f.ref1, f.ref2);
+}
+// 紹介者ルールを入れる前の率（ownPctOverride を渡すとその比率で計算。個別率は常に優先）
+function getRatesRaw(name, ownPctOverride, ym){
   const u = name ? USER_RATES[name] : null;
   if (u && u.custom) return { funder:0, ...u.custom, _src:'custom', ownPct:getOwnPct(name, ym) };
   if (u && ['own','fund','fund2'].includes(u.plan)) return { funder:0, ...RATE_PLANS[u.plan], _src:u.plan, _fixed:true, ownPct:getOwnPct(name, ym) };
@@ -1526,7 +1538,8 @@ function ceRender(){
   const v = x => x===undefined||x===null ? '' : (x===''?'なし':x);
   const sec = t => `<div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;text-transform:uppercase">${t}</div>`;
   const names = allKnownNames().map(x=>`<option value="${escH(x)}">`).join('');
-  const base = CE.custom || Object.fromEntries(RATE_KEYS.map(k=>[k, rt[k]||0]));
+  const rawRt = getRatesRaw(n);
+  const base = CE.custom || Object.fromEntries(RATE_KEYS.map(k=>[k, rawRt[k]||0]));
   document.getElementById('ce-body').innerHTML = `
     <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:12.5px;color:var(--dim)">
       <span>顧客番号 <span class="mn">${escH(c.clientNo||'—')}</span></span><span>グループ ${escH(c.group||'（空欄）')}</span>
@@ -1541,7 +1554,7 @@ function ceRender(){
     <p class="help">空欄＝自動（個人タブの紹介者欄と、直紹介者の紹介者から判定）。いない場合は「なし」と入力。
       ${auto.raw?`<br>シートの紹介者欄：「${escH(auto.raw)}」${auto.check?` <span style="color:var(--gold)">⚠ 要確認：${escH(auto.note)}</span>`:''}`:'<br>シートの紹介者欄：空欄'}</p>
     ${sec('プラン')}
-    <select class="inp" id="ce-plan" onchange="CE.plan=this.value; if(CE.plan==='custom'&&!CE.custom){CE.custom=Object.fromEntries(RATE_KEYS.map(k=>[k,getRates(CE.name)[k]||0]));} ceRender()" style="font-family:var(--sans)">
+    <select class="inp" id="ce-plan" onchange="CE.plan=this.value; if(CE.plan==='custom'&&!CE.custom){CE.custom=Object.fromEntries(RATE_KEYS.map(k=>[k,getRatesRaw(CE.name)[k]||0]));} ceRender()" style="font-family:var(--sans)">
       <option value="" ${CE.plan===''?'selected':''}>自動（入出金・資金提供者から判定）</option>
       <option value="own" ${CE.plan==='own'?'selected':''}>自己資金プランで固定</option>
       <option value="fund" ${CE.plan==='fund'?'selected':''}>資金提供プランで固定</option>
@@ -1626,7 +1639,7 @@ function updUserPct(name,v){
 }
 function toggleUserCustom(name,on){
   USER_RATES[name] = USER_RATES[name]||{};
-  if (on){ const base=getRates(name); USER_RATES[name].custom = Object.fromEntries(RATE_KEYS.map(k=>[k,base[k]])); }
+  if (on){ const base=getRatesRaw(name); USER_RATES[name].custom = Object.fromEntries(RATE_KEYS.map(k=>[k,base[k]])); }
   else USER_RATES[name].custom = null;
   cleanupUserRate(name); saveUserRates(); renderUserRateTable(); refreshAfterRateChange();
 }
@@ -1729,7 +1742,8 @@ function stmtBuild(){
     periodLabel=`${y}年${m}月分`;
   }
   if(mode!=='manual' && !member) return {error:`売上シートに「${name}」のデータがありません（「手入力」モードなら利益を直接入力できます）`};
-  months=months.map(x=>{ const rm=getRates(name, ovr, ymKey(x.year,x.month)); return {...x, ...calcVex(x.profit, rm), rm}; });
+  const fRef1=(document.getElementById('stmt-ref1')?.value||'').trim(), fRef2=(document.getElementById('stmt-ref2')?.value||'').trim();
+  months=months.map(x=>{ const rm=mergeRefRates(getRatesRaw(name, ovr, ymKey(x.year,x.month)), fRef1, fRef2); return {...x, ...calcVex(x.profit, rm), rm}; });
   const rates = months[0].rm;
   const varies = months.some(m=>RATE_KEYS.some(k=>Math.abs(m.rm[k]-rates[k])>1e-9) || m.rm.ownPct!==rates.ownPct);
   const tot=k=>months.reduce((s,x)=>s+(x[k]||0),0);
@@ -1760,7 +1774,7 @@ function stmtHTML(d){
     <table><thead><tr><th>区分</th><th class="n">率</th><th class="n">金額</th><th>備考</th></tr></thead><tbody>
       <tr><td>ご本人報酬</td><td class="n">${rp('user')}</td><td class="n">${y(d.totalUser)}</td><td></td></tr>
       <tr><td>直紹介者報酬</td><td class="n">${rp('ref1')}</td><td class="n">${y(d.totalRef1)}</td><td>${escH(d.ref1)}</td></tr>
-      <tr><td>間接紹介者報酬</td><td class="n">${rp('ref2')}</td><td class="n">${y(d.totalRef2)}</td><td>${escH(d.ref2)}</td></tr>
+      <tr><td>間接紹介者報酬</td><td class="n">${rp('ref2')}</td><td class="n">${y(d.totalRef2)}</td><td>${d.ref2?escH(d.ref2):(d.ref1&&r._refMerged?'間接紹介者なし（直紹介者へ）':'')}</td></tr>
       <tr><td>運営</td><td class="n">${rp('ops')}</td><td class="n">${y(d.totalOps)}</td><td>複利運用</td></tr>
       <tr><td>リスク管理</td><td class="n">${rp('risk')}</td><td class="n">${y(d.totalRisk)}</td><td>複利運用</td></tr>
       ${d.totalFunder||r.funder ? `<tr><td>資金提供者報酬</td><td class="n">${rp('funder')}</td><td class="n">${y(d.totalFunder)}</td><td>${escH(userFunders(d.name).map(l=>l.funder).join('・'))}</td></tr>` : ''}
@@ -2830,7 +2844,7 @@ function vexCalc() {
     return;
   }
 
-  const rts = getRates(vName, ownPct);
+  const rts = mergeRefRates(getRatesRaw(vName, ownPct), ref1name, ref2name);
   const r = calcVex(profit, rts);
   const ac = rateColor(rts);
   const typeBadge = rateBadge(rts, false);
@@ -2878,7 +2892,7 @@ function vexCalc() {
     </div>
     <div style="margin-top:4px">
       ${row('ユーザー手取り', r.user, +(rates.user*100).toFixed(2), ac)}
-      ${row('直紹介者報酬', r.refDirect, +(rates.ref1*100).toFixed(2), '#a5c4ff', ref1name ? `→ ${ref1name}` : '')}
+      ${row('直紹介者報酬', r.refDirect, +(rates.ref1*100).toFixed(2), '#a5c4ff', ref1name ? `→ ${ref1name}${rates._refMerged?'（間接紹介分を含む）':''}` : '')}
       ${row('間接紹介者報酬', r.refIndirect, +(rates.ref2*100).toFixed(2), '#a5c4ff', ref2name ? `→ ${ref2name}` : '')}
       ${(rates.funder||0)>0 ? row('資金提供者報酬', r.funder, +(rates.funder*100).toFixed(2), '#ec4899', vName&&userFunders(vName).length ? '→ '+funderSplit(vName, r.funder).map(x=>`${x.funder} ¥${fmt(x.amount)}`).join('・') : '') : ''}
       ${row('運営（複利運用）', r.ops, +(rates.ops*100).toFixed(2), 'var(--gold)')}
@@ -2979,7 +2993,7 @@ function renderVexBatch() {
 
   tbody.innerHTML = vexRows.map(row => {
     if (!row.pctEdited) row.ownPct = row.name ? getOwnPct(row.name, batchMonth||undefined) : (row.ownPct ?? 100);
-    const rts = getRates(row.name, row.ownPct, batchMonth||undefined);
+    const rts = mergeRefRates(getRatesRaw(row.name, row.ownPct, batchMonth||undefined), row.ref1, row.ref2);
     const r = row.profit > 0 ? calcVex(row.profit, rts) : null;
     if (r) { totUser+=r.user; totRef1+=r.refDirect; totRef2+=r.refIndirect; totOps+=r.ops; totRisk+=r.risk; totFunder+=r.funder||0; }
     const tc = rateColor(rts);
@@ -3213,7 +3227,7 @@ async function vexBulkRegisterToPayment(){
   var ok=0,fail=0;
   for(var i=0;i<rows.length;i++){
     var row=rows[i];
-    var rts=getRates(row.name,row.ownPct,document.getElementById("vex-batch-month")?.value||undefined);
+    var rts=mergeRefRates(getRatesRaw(row.name,row.ownPct,document.getElementById("vex-batch-month")?.value||undefined),row.ref1,row.ref2);
     var r=calcVex(row.profit,rts);
     var cl=S.clients[row.name]||{};
     var transfer=r.user+2000;
@@ -3524,7 +3538,8 @@ function histCalcPreview() {
   const profit = parseFloat(document.getElementById('hist-profit')?.value)||0;
   const htype = document.getElementById('hist-type')?.value||'auto';
   const huser = document.getElementById('hist-user')?.value.trim();
-  const rts = htype==='auto' ? getRates(huser, undefined, document.getElementById('hist-ym')?.value||undefined) : getRates('', htype==='own'?100:0);
+  const hr1 = document.getElementById('hist-ref1')?.value.trim(), hr2 = document.getElementById('hist-ref2')?.value.trim();
+  const rts = mergeRefRates(htype==='auto' ? getRatesRaw(huser, undefined, document.getElementById('hist-ym')?.value||undefined) : getRatesRaw('', htype==='own'?100:0), hr1, hr2);
   const type = rts.ownPct>=50?'own':'fund';
   const preview = document.getElementById('hist-preview');
   const rows = document.getElementById('hist-preview-rows');
@@ -3555,7 +3570,7 @@ async function histSave() {
 
   if(!ym||!user){ histMsg('清算年月と利用者名は必須です','error'); return; }
 
-  const rts = htype==='auto' ? getRates(user, undefined, ym) : getRates('', htype==='own'?100:0);
+  const rts = mergeRefRates(htype==='auto' ? getRatesRaw(user, undefined, ym) : getRatesRaw('', htype==='own'?100:0), ref1, ref2);
   const type = rts.ownPct>=50?'own':'fund';
   const r = calcVex(profit, rts);
   const entry = {
