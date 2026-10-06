@@ -2,8 +2,53 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8"/>
+<script>
+// ================================================================
+// 👥 グループ設定（画面右上で切り替え）
+//   設定（報酬率・紹介者・資金提供者など）はグループごとに分けてブラウザに保存
+// ================================================================
+window.GROUPS = {
+  g1: { name:'第1グループ',
+        sales:'1F07O3cwj7SlqEQKz5sz7L81vEiEqHKmM8Czg1cxHIAs', salesSheet:'鈴村年間収支表',
+        client:'1nVhHCSLQLtkWZQ-cBYHEGL1qYyqfBKjYIX2uPySQQ2c', clientSheet:'運用状況',
+        payment:'1PhCM_xXwsDqFRcABHXeWVM1LZ7NkZt2PuPvxj6HGPcw', paymentSheet:'銀行送金',
+        vex:'161CoqauS6weOsIIkqRTrIaDZ5qrDzI5cZr62q2v4hkk', vexSheet:'VEX準備状況v2',
+        ops:['中野','中原','種田','松村','小川','後藤'],
+        gas:'https://script.google.com/macros/s/AKfycbxOC23h189OZE6g28iddbiSUY17zQCyJSWqgi-wsZRjohSONoDUxgRa1ipYraXZJ3tt/exec' },
+  furuichi: { name:'古市グループ',
+        sales:'1wxPfkE7KeV20f1jXK1JBdjrdjSj9KIu2JVwORfKi-zw', salesSheet:'年間収支表',
+        client:'1GsLDwa6Ac8rBZk0myprJ2H16FmPDHUbudCcS4S8JDdE', clientSheet:'運用状況',
+        payment:'1GBqb0mZNOIJUeHVA3lVTopSYLMJ_uWCjKCHPOm40iMA', paymentSheet:'銀行送金',
+        vex:'1ETrLuUn0jgTfZCpBDl_M8pQSAmsgyTgQKb5XTH2no1c', vexSheet:'VEX準備状況v2',
+        ops:['中野','三國','古市','サポート','会社'],
+        gas:'https://script.google.com/macros/s/AKfycbwctxBizMZAo18VPf45qBD8QMufy40KiJOLVA1CdLycazYRHeQ2fsTDr0St7zdEcy2hMA/exec' }
+};
+(function(){
+  let g = null;
+  try { g = new URLSearchParams(location.search).get('group'); } catch(e){}
+  try { if(!g) g = localStorage.getItem('vex_group'); } catch(e){}
+  if (!g || !window.GROUPS[g]) g = 'g1';
+  try { localStorage.setItem('vex_group', g); } catch(e){}
+  window.GROUP_ID = g;
+  window.GROUP_CONF = window.GROUPS[g];
+  // 第1グループ以外は保存キーに「グループ名:」を付けて、設定をグループごとに分ける
+  if (g !== 'g1') {
+    const P = g + ':', sp = Storage.prototype, gi = sp.getItem, si = sp.setItem, ri = sp.removeItem;
+    const k = key => (key === 'vex_group' ? key : P + key);
+    sp.getItem = function(key){ return gi.call(this, k(key)); };
+    sp.setItem = function(key, v){ return si.call(this, k(key), v); };
+    sp.removeItem = function(key){ return ri.call(this, k(key)); };
+  }
+})();
+function switchGroup(g){
+  if (!window.GROUPS[g] || g === window.GROUP_ID) return;
+  try { localStorage.setItem('vex_group', g); } catch(e){}
+  const u = new URL(location.href); u.searchParams.set('group', g); location.href = u.toString();
+}
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>ソーシャルナビ 報酬分配ダッシュボード</title>
+<script>document.title = 'ソーシャルナビ 報酬分配ダッシュボード【' + window.GROUP_CONF.name + '】';</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Serif+Display&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
@@ -147,6 +192,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <div><div class="brand-name">RewardDash</div><div class="brand-sub">ソーシャルナビ 報酬分配システム</div></div>
       </div>
       <div class="conn-badge">
+        <select id="group-select" onchange="switchGroup(this.value)" title="グループを切り替え" style="background:var(--card2);color:var(--text);border:1px solid var(--border2);border-radius:8px;padding:5px 8px;font-size:12.5px;margin-right:12px;font-family:var(--sans);cursor:pointer"></select>
+        <script>document.getElementById('group-select').innerHTML = Object.entries(window.GROUPS).map(([k,v])=>`<option value="${k}" ${k===window.GROUP_ID?'selected':''}>👥 ${v.name}</option>`).join('');</script>
         <div class="conn-dot"></div>
         <span id="connLabel">接続済み</span>
         <span style="margin-left:10px;color:var(--border2)">|</span>
@@ -1026,12 +1073,19 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div class="sc">
             <div class="st">📋 接続情報</div>
             <div style="font-size:12.5px;color:var(--dim);line-height:2.2">
+              <div style="margin-bottom:6px">👥 <strong>グループ</strong>：<span id="ci-group"></span></div>
               <div>📊 <strong>売上シート</strong></div>
-              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">鈴村年間収支表</div>
+              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)" id="ci-sales"></div>
               <div style="margin-top:6px">👥 <strong>クライアント情報</strong></div>
-              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">運用状況シート</div>
-              <div style="margin-top:6px">💳 <strong>支払いシート</strong></div>
-              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)">1aFwtiDPD0VN64jeS48Wjvm9FmuealJyopGowM6-ouVM</div>
+              <div style="padding-left:14px;font-family:var(--mono);font-size:11px;color:var(--muted)" id="ci-client"></div>
+              <div style="margin-top:6px">🏢 <strong>運営チーム</strong></div>
+              <div style="padding-left:14px;font-size:11.5px;color:var(--muted)" id="ci-ops"></div>
+              <script>
+                document.getElementById('ci-group').textContent = GROUP_CONF.name;
+                document.getElementById('ci-sales').innerHTML = `<a href="https://docs.google.com/spreadsheets/d/${GROUP_CONF.sales}" target="_blank" style="color:var(--blue)">${GROUP_CONF.salesSheet}</a>`;
+                document.getElementById('ci-client').innerHTML = `<a href="https://docs.google.com/spreadsheets/d/${GROUP_CONF.client}" target="_blank" style="color:var(--blue)">${GROUP_CONF.clientSheet}＋個人タブ</a>`;
+                document.getElementById('ci-ops').textContent = GROUP_CONF.ops.join('・');
+              </script>
             </div>
           </div>
         </div>
@@ -1898,16 +1952,17 @@ function stmtOpenFor(name, opt={}){
 
 
 <script>
-const SALES_ID='1F07O3cwj7SlqEQKz5sz7L81vEiEqHKmM8Czg1cxHIAs';
-const CLIENT_ID='1nVhHCSLQLtkWZQ-cBYHEGL1qYyqfBKjYIX2uPySQQ2c';
-const PAYMENT_ID='1PhCM_xXwsDqFRcABHXeWVM1LZ7NkZt2PuPvxj6HGPcw';
-const VEX_STATUS_ID='161CoqauS6weOsIIkqRTrIaDZ5qrDzI5cZr62q2v4hkk';
-const SALES_SHEET='鈴村年間収支表';
-const CLIENT_SHEET='運用状況';
-const PAYMENT_SHEET='銀行送金';
-const VEX_STATUS_SHEET='VEX準備状況v2';
+// 接続先はグループ設定（<head>の GROUPS）から
+const SALES_ID=GROUP_CONF.sales;
+const CLIENT_ID=GROUP_CONF.client;
+const PAYMENT_ID=GROUP_CONF.payment;
+const VEX_STATUS_ID=GROUP_CONF.vex;
+const SALES_SHEET=GROUP_CONF.salesSheet;
+const CLIENT_SHEET=GROUP_CONF.clientSheet;
+const PAYMENT_SHEET=GROUP_CONF.paymentSheet;
+const VEX_STATUS_SHEET=GROUP_CONF.vexSheet;
 // 運営チームメンバー（固定）
-const OPS_TEAM = ['中野','中原','種田','松村','小川','後藤'];
+const OPS_TEAM = GROUP_CONF.ops;
 const COL_MAP={};
 // 実際の列構造（0始まりインデックス）:
 // [0]=空 [1]=名前 [2]=総利益 [3]=公開URL
@@ -1940,16 +1995,32 @@ async function sheetsAPI(sheetId,range){
   return d.values||[];
 }
 
+// 年間収支表の見出し（4行目＝年、5行目＝月）から「列→年月」を読み取る。読めなければ従来の固定列
+function detectColMap(values){
+  const yr=values[3]||[], mo=values[4]||[], map={};
+  let year=null; const byYear={};
+  const width=Math.max(yr.length, mo.length);
+  for(let j=2;j<width;j++){
+    const ym=String(yr[j]||'').match(/(20\d{2})/); if(ym) year=+ym[1];
+    if(!year) continue;
+    const ml=String(mo[j]||'').trim().match(/^(\d{1,2})月?$/);
+    if(ml && +ml[1]>=1 && +ml[1]<=12){ map[j]={year, month:+ml[1]}; (byYear[year]=byYear[year]||{})[+ml[1]]=j; }
+  }
+  // 12月の見出しが別の文字になっている場合（例：「公開URL（年指定）」）は11月の次の列を12月とみなす
+  Object.entries(byYear).forEach(([y,ms])=>{ if(ms[11]!==undefined && ms[12]===undefined){ const j=ms[11]+1; if(!/年間/.test(String(mo[j]||''))) map[j]={year:+y, month:12}; } });
+  return Object.keys(map).length>=6 ? map : COL_MAP;
+}
 function parseSales(values){
   if(!values||values.length<6) return [];
   const members=[];
+  const colMap=detectColMap(values);
   for(let ri=5;ri<values.length;ri++){
     const row=values[ri]||[];
     const name=(row[1]||'').toString().trim();
     if(!name||name==='名前'||name==='合計'||name==='小計') continue;
     const totalProfit=parseFloat((row[2]||'').toString().replace(/[¥,\s]/g,''))||0;
     const months={};
-    for(const [ci,{year,month}] of Object.entries(COL_MAP)){
+    for(const [ci,{year,month}] of Object.entries(colMap)){
       const raw=(row[parseInt(ci)]||'').toString().trim();
       // URL文字列はスキップして0扱い（https:// または script.google.com を含む場合）
       const isUrl = raw.startsWith('http') || raw.includes('script.google.com');
@@ -1964,7 +2035,11 @@ function parseSales(values){
 
 function parseClients(values){
   if(!values||values.length<4) return {};
-  const BROKER_COLS={XMTrading:5,BigBoss:6,FXGT:7,iFOREX:8,Vantage:9,Axiory:10,HFM:11};
+  // 3行目の証券会社名から列を読み取る（グループによって並び順が違うため）
+  let BROKER_COLS={};
+  const bh=values[2]||[];
+  for(let j=5;j<bh.length;j++){ const b=String(bh[j]||'').trim(); if(!b) break; if(BROKER_COLS[b]===undefined) BROKER_COLS[b]=j; }
+  if(Object.keys(BROKER_COLS).length<3) BROKER_COLS={XMTrading:5,BigBoss:6,FXGT:7,iFOREX:8,Vantage:9,Axiory:10,HFM:11};
   const clients={};
   for(let ri=3;ri<values.length;ri++){
     const row=values[ri]||[];
@@ -1987,7 +2062,7 @@ async function connect(){
   if(btnConn) btnConn.disabled=true;
   showLoad('スプレッドシートに接続中...');
   try{
-    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AE60`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:R100`)]);
+    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)]);
     S.members=parseSales(sv);
     S.clients=parseClients(cv);
     if(!S.members.length) throw new Error('メンバーデータが取得できませんでした。\nスプレッドシートを「リンクを知っている全員が閲覧可能」に設定してください。');
@@ -2013,7 +2088,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   S.apiKey = EMBEDDED_API_KEY;
   showLoad('接続中...');
   try{
-    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AE60`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:R100`)]);
+    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)]);
     S.members=parseSales(sv);
     S.clients=parseClients(cv);
     if(!S.members.length) throw new Error('データなし');
@@ -2037,7 +2112,7 @@ async function refreshAll(){
   if(S.isDemo) return;
   showLoad('再読込中...');
   try{
-    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AE60`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:R100`)]);
+    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)]);
     S.members=parseSales(sv);S.clients=parseClients(cv);
     hideLoad();renderAll();loadSheetFunds(true);
   }catch(e){hideLoad();alert('エラー: '+e.message);}
@@ -3268,7 +3343,7 @@ function showErr(m){const e=document.getElementById('serr');e.textContent=m;e.cl
 // ================================================================
 // 🌐 Google Apps Script Webアプリ URL（スプレッドシート保存用）
 // ================================================================
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxOC23h189OZE6g28iddbiSUY17zQCyJSWqgi-wsZRjohSONoDUxgRa1ipYraXZJ3tt/exec';
+const GAS_URL = GROUP_CONF.gas;
 
 function exportBankCSV(){
   var data=S.bankData||[];
