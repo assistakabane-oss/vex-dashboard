@@ -434,7 +434,15 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div class="sc">
             <div class="st">🧾 報酬明細を作成</div>
             <div class="fg">
-              <label class="lbl">利用者</label>
+              <label class="lbl">明細の宛先</label>
+              <select class="inp" id="stmt-kind" onchange="stmtKindChanged()" style="font-family:var(--sans)">
+                <option value="client">クライアント（本人報酬）</option>
+                <option value="ref">紹介者（紹介報酬）</option>
+                <option value="funder">資金提供者（資金提供者報酬）</option>
+              </select>
+            </div>
+            <div class="fg">
+              <label class="lbl" id="stmt-user-lbl">利用者</label>
               <input class="inp" id="stmt-user" list="stmt-user-list" placeholder="名前を入力・選択" oninput="stmtUserChanged()"/>
               <datalist id="stmt-user-list"></datalist>
             </div>
@@ -461,7 +469,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <label class="lbl">運用利益（円）</label>
               <input class="inp" id="stmt-profit" type="number" placeholder="0" oninput="stmtRender()" style="font-family:var(--mono)"/>
             </div>
-            <div class="fg">
+            <div class="fg stmt-cli">
               <label class="lbl">自己資金の割合（%）</label>
               <input class="inp" id="stmt-ownpct" type="number" min="0" max="100" placeholder="空欄＝月別設定に従う" oninput="stmtRender()" style="font-family:var(--mono)"/>
               <p class="help">空欄なら設定タブの月別比率を月ごとに適用します。数値を入れると全月をその比率で計算します（個別率の人は個別率が優先）</p>
@@ -470,11 +478,11 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <div style="flex:1.3"><label class="lbl">調整項目（任意）</label><input class="inp" id="stmt-adj-label" placeholder="例：PC代 / 振込手数料" oninput="stmtRender()"/></div>
               <div style="flex:1"><label class="lbl">金額（控除は−）</label><input class="inp" id="stmt-adj" type="number" placeholder="0" oninput="stmtRender()" style="font-family:var(--mono)"/></div>
             </div>
-            <div class="fg" style="display:flex;gap:8px">
+            <div class="fg stmt-cli" style="display:flex;gap:8px">
               <div style="flex:1"><label class="lbl">直紹介者（任意）</label><input class="inp" id="stmt-ref1" oninput="stmtRender()"/></div>
               <div style="flex:1"><label class="lbl">間接紹介者（任意）</label><input class="inp" id="stmt-ref2" oninput="stmtRender()"/></div>
             </div>
-            <div class="fg">
+            <div class="fg stmt-cli">
               <label style="display:flex;gap:8px;align-items:center;font-size:12.5px;color:var(--dim);cursor:pointer"><input type="checkbox" id="stmt-breakdown" onchange="stmtSaveSettings();stmtRender()" style="width:auto"/>配分内訳（紹介・運営・リスク管理）も載せる</label>
             </div>
             <div class="fg">
@@ -681,26 +689,28 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <div class="tbl-hdr">
               <div class="tbl-ttl">💰 紹介者の報酬</div>
               <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('ref')" title="表示中の期間の紹介者報酬を支払い管理に登録">💳 支払い管理に登録</button>
                 <select class="inp" id="rr-mode" onchange="renderReferrerRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option></select>
                 <input class="inp" id="rr-month" type="month" oninput="renderReferrerRewards()" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
               </div>
             </div>
             <div style="overflow-x:auto"><table>
-              <thead><tr><th>紹介者</th><th style="text-align:right">直紹介</th><th style="text-align:right">間接紹介</th><th style="text-align:right">合計</th><th>内訳（紹介したユーザー）</th></tr></thead>
-              <tbody id="rr-tbody"><tr class="empty"><td colspan="5">データを読み込んでください</td></tr></tbody>
+              <thead><tr><th>紹介者</th><th style="text-align:right">直紹介</th><th style="text-align:right">間接紹介</th><th style="text-align:right">合計</th><th>内訳（紹介したユーザー）</th><th></th></tr></thead>
+              <tbody id="rr-tbody"><tr class="empty"><td colspan="6">データを読み込んでください</td></tr></tbody>
             </table></div>
           </div>
           <div class="tbl-card" style="margin-top:20px">
             <div class="tbl-hdr">
               <div class="tbl-ttl">💴 資金提供者の報酬</div>
               <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('funder')" title="表示中の期間の資金提供者報酬を支払い管理に登録">💳 支払い管理に登録</button>
                 <select class="inp" id="fr-mode" onchange="renderFunderRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option></select>
                 <input class="inp" id="fr-month" type="month" oninput="renderFunderRewards()" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
               </div>
             </div>
             <table>
-              <thead><tr><th>資金提供者</th><th>区分</th><th>対象ユーザー（利益 → 報酬）</th><th style="text-align:right">報酬合計</th></tr></thead>
-              <tbody id="fr-tbody"><tr class="empty"><td colspan="4">資金提供者を登録してください</td></tr></tbody>
+              <thead><tr><th>資金提供者</th><th>区分</th><th>対象ユーザー（利益 → 報酬）</th><th style="text-align:right">報酬合計</th><th></th></tr></thead>
+              <tbody id="fr-tbody"><tr class="empty"><td colspan="5">資金提供者を登録してください</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -812,10 +822,12 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <button class="btn btn-secondary btn-sm" onclick="openBankForm()">➕ 新規追加</button>
         <div style="font-size:12px;color:var(--muted);margin-left:8px" id="payment-last-load"></div>
         <div class="ml-auto"></div>
-        <select class="inp" id="bank-filter-type" onchange="renderBankTab()" style="width:110px;padding:6px 10px;font-size:12px">
+        <select class="inp" id="bank-filter-type" onchange="renderBankTab()" style="width:130px;padding:6px 10px;font-size:12px">
           <option value="">全タイプ</option>
           <option value="自己資金">自己資金</option>
           <option value="資金提供">資金提供</option>
+          <option value="紹介者報酬">紹介者報酬</option>
+          <option value="資金提供者報酬">資金提供者報酬</option>
         </select>
         <select class="inp" id="bank-filter-status" onchange="renderBankTab()" style="width:110px;padding:6px 10px;font-size:12px">
           <option value="">全ステータス</option>
@@ -1885,8 +1897,7 @@ function stmtInit(){
   const qEl=document.getElementById('stmt-qmonth');
   if(qEl && !qEl.dataset.init){ const m=now.getMonth()+1; const prevQ=[12,3,6,9][Math.floor((m-1)/3)]; qEl.value=prevQ; if(prevQ===12 && yEl) yEl.value=now.getFullYear()-1; qEl.dataset.init='1'; }
   const mEl=document.getElementById('stmt-month'); if(mEl && !mEl.value) mEl.value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
-  const dl=document.getElementById('stmt-user-list'); if(dl) dl.innerHTML=allKnownNames().map(n=>`<option value="${escH(n)}">`).join('');
-  stmtModeChanged(); stmtRender();
+  stmtKindChanged();
 }
 function stmtSaveSettings(){
   lsSet(STMT_KEY,{ issuer:document.getElementById('stmt-issuer')?.value||'', note:document.getElementById('stmt-note')?.value||'', showBreakdown:!!document.getElementById('stmt-breakdown')?.checked });
@@ -1896,14 +1907,177 @@ function stmtModeChanged(){
   ['quarter','month','manual'].forEach(m=>{ document.querySelectorAll('.stmt-'+m).forEach(e=>e.style.display=(m===mode||(m==='month'&&mode==='manual'))?'':'none'); });
 }
 function stmtUserChanged(){
+  if (stmtKind()!=='client'){ stmtRender(); return; }
   const n=document.getElementById('stmt-user')?.value.trim(); const el=document.getElementById('stmt-ownpct');
   if(el) el.value = '';
   if(n && isClientName(n)){ const r=getRefs(n); document.getElementById('stmt-ref1').value=r.ref1||''; document.getElementById('stmt-ref2').value=r.ref2||''; }
   stmtRender();
 }
+// ================================================================
+// 💰 紹介者・資金提供者の報酬（人ごとの集計・明細・支払い登録）
+// ================================================================
+const PARTNER_LABEL = { ref:'紹介者報酬', funder:'資金提供者報酬' };
+// 期間内の報酬を人ごとに集計 { 名前: { direct, indirect, extra, funder, total, rows:[{year,month,user,type,amount}] } }
+function partnerTotals(kind, months){
+  const out={};
+  const add=(n,row)=>{ if(!n||!row.amount) return; const o=out[n]=out[n]||{direct:0,indirect:0,extra:0,funder:0,total:0,rows:[]}; o[row.key]+=row.amount; o.total+=row.amount; o.rows.push(row); };
+  (S.members||[]).forEach(m=>{
+    months.forEach(({year,month})=>{
+      const profit=(m.months[year]||{})[month]||0; if(!profit) return;
+      const r=calcVex(profit, getRates(m.name, undefined, ymKey(year,month)));
+      if (kind==='ref'){
+        Object.entries(refPayouts(m.name, r.refDirect, r.refIndirect)).forEach(([n,v])=>{
+          add(n,{year,month,user:m.name,key:'direct',type:'直紹介',amount:v.direct});
+          add(n,{year,month,user:m.name,key:'extra',type:'間接紹介（間接紹介者なしのため上乗せ）',amount:v.extra});
+          add(n,{year,month,user:m.name,key:'indirect',type:'間接紹介',amount:v.indirect});
+        });
+      } else {
+        funderSplit(m.name, r.funder).forEach(x=>add(x.funder,{year,month,user:m.name,key:'funder',type:'資金提供',amount:x.amount}));
+      }
+    });
+  });
+  return out;
+}
+function partnerNames(kind){
+  if (kind==='funder') return (FUNDERS.list||[]).map(f=>f.name);
+  const set=new Set();
+  allKnownNames().forEach(n=>{ const f=getRefs(n); f.refs1.forEach(r=>{ set.add(r.name); (r.up||[]).forEach(u=>set.add(u.name)); }); if(f.ref2src==='manual'&&f.ref2) set.add(f.ref2); });
+  return [...set].filter(Boolean).sort((a,b)=>a.localeCompare(b,'ja'));
+}
+function periodLabelOf(months){
+  const a=months[0], b=months[months.length-1];
+  return months.length===1 ? `${a.year}年${a.month}月分` : `${a.year}年${a.month}月〜${b.month}月`;
+}
+function payDateOf(months){ const b=months[months.length-1]; const y=b.month===12?b.year+1:b.year, m=b.month===12?1:b.month+1; return `${y}-${String(m).padStart(2,'0')}-10`; }
+
+// ---- 明細：宛先の切り替え ----
+function stmtKind(){ return document.getElementById('stmt-kind')?.value||'client'; }
+function stmtKindChanged(){
+  const k=stmtKind();
+  document.querySelectorAll('.stmt-cli').forEach(e=>e.style.display = k==='client' ? '' : 'none');
+  const lbl=document.getElementById('stmt-user-lbl'); if(lbl) lbl.textContent = k==='client' ? '利用者' : k==='ref' ? '紹介者' : '資金提供者';
+  const dl=document.getElementById('stmt-user-list'); if(dl) dl.innerHTML=(k==='client'?allKnownNames():partnerNames(k)).map(n=>`<option value="${escH(n)}">`).join('');
+  const mode=document.getElementById('stmt-mode');
+  if(mode){ const man=[...mode.options].find(o=>o.value==='manual'); if(man) man.disabled = k!=='client'; if(k!=='client' && mode.value==='manual') mode.value='month'; }
+  stmtModeChanged(); stmtRender();
+}
+function stmtPeriod(){
+  const mode=document.getElementById('stmt-mode')?.value||'quarter';
+  if(mode==='quarter'){
+    const y=parseInt(document.getElementById('stmt-year')?.value)||new Date().getFullYear();
+    const q=parseInt(document.getElementById('stmt-qmonth')?.value)||3;
+    const months=getQuarterMonths(q,y);
+    return {months, periodLabel:`${y}年${q-2}月〜${q}月（${q}月末締め）`, payLabel:`${q===12?y+1:y}年${q===12?1:q+1}月10日前後`};
+  }
+  const ym=document.getElementById('stmt-month')?.value||''; if(!ym) return {error:'対象月を選択してください'};
+  const [y,m]=ym.split('-').map(Number);
+  return {months:[{year:y,month:m}], periodLabel:`${y}年${m}月分`, payLabel:''};
+}
+function stmtBuildPartner(kind){
+  const name=(document.getElementById('stmt-user')?.value||'').trim();
+  if(!name) return {error: kind==='ref'?'紹介者を選択してください':'資金提供者を選択してください'};
+  const p=stmtPeriod(); if(p.error) return p;
+  const o=(partnerTotals(kind, p.months)[name]) || {total:0, rows:[]};
+  const adjLabel=(document.getElementById('stmt-adj-label')?.value||'').trim();
+  const adj=parseFloat(document.getElementById('stmt-adj')?.value)||0;
+  return { kind, name, ...p, rows:o.rows.slice().sort((a,b)=>(a.year*100+a.month)-(b.year*100+b.month)||a.user.localeCompare(b.user,'ja')),
+    total:o.total, adjLabel, adj, payTotal:o.total+adj,
+    issuer:document.getElementById('stmt-issuer')?.value||'', note:document.getElementById('stmt-note')?.value||'',
+    issueDate:new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric'}),
+    no:(kind==='ref'?'RR-':'RF-')+new Date().toISOString().slice(0,10).replace(/-/g,'')+'-'+(Math.abs([...name].reduce((h,c)=>h*31+c.charCodeAt(0)|0,7))%10000).toString().padStart(4,'0') };
+}
+function stmtHTMLPartner(d){
+  const y=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
+  const rows=d.rows.map(r=>`<tr><td>${r.year}年${r.month}月</td><td>${escH(r.user)} 様</td><td>${escH(r.type)}</td><td class="n b">${y(r.amount)}</td></tr>`).join('')
+    || '<tr><td colspan="4" style="text-align:center;color:#888">この期間の報酬はありません</td></tr>';
+  return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>報酬明細書_${escH(d.name)}_${escH(d.periodLabel)}</title>
+<style>
+@page{size:A4;margin:16mm}
+*{box-sizing:border-box}body{font-family:"Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans JP",Meiryo,sans-serif;color:#1a1d24;margin:0;font-size:12.5px;line-height:1.6;background:#fff}
+.wrap{max-width:720px;margin:0 auto;padding:8px}
+h1{font-size:22px;letter-spacing:.3em;text-align:center;margin:0 0 22px;padding-bottom:10px;border-bottom:2px solid #1a1d24}
+.top{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:22px;gap:20px}
+.to{font-size:18px;border-bottom:1px solid #1a1d24;padding:0 30px 4px 0}.to small{font-size:13px;margin-left:8px}
+.meta{text-align:right;font-size:11.5px;color:#444}
+.total{display:flex;justify-content:space-between;align-items:center;border:2px solid #1a1d24;padding:12px 18px;margin:0 0 20px}
+.total .l{font-size:13px}.total .v{font-size:24px;font-weight:700}
+.info{display:grid;grid-template-columns:120px 1fr;border-top:1px solid #ccc;margin-bottom:20px}
+.info div{padding:6px 10px;border-bottom:1px solid #ccc}.info div:nth-child(odd){background:#f3f4f6;font-weight:600}
+h3{font-size:13px;margin:18px 0 6px;border-left:4px solid #1a1d24;padding-left:8px}
+table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px solid #bbb;padding:6px 10px}th{background:#f3f4f6;font-weight:600;text-align:left}
+.n{text-align:right;font-variant-numeric:tabular-nums}.b{font-weight:700}tr.t td{font-weight:700;background:#fafafa}
+.note{margin-top:18px;padding:10px 12px;border:1px solid #ccc;min-height:48px;white-space:pre-wrap;font-size:11.5px}
+.issuer{margin-top:26px;text-align:right;font-size:13px}
+</style></head><body><div class="wrap">
+<h1>報酬明細書</h1>
+<div class="top"><div class="to">${escH(d.name)}<small>様</small></div>
+<div class="meta">発行日：${d.issueDate}<br>明細番号：${d.no}</div></div>
+<p style="margin:0 0 12px">下記のとおり、${PARTNER_LABEL[d.kind]}をご報告いたします。</p>
+<div class="total"><span class="l">お支払金額</span><span class="v">${y(d.payTotal)}</span></div>
+<div class="info">
+  <div>対象期間</div><div>${escH(d.periodLabel)}</div>
+  ${d.payLabel?`<div>お支払予定</div><div>${escH(d.payLabel)}</div>`:''}
+  <div>報酬の種類</div><div>${PARTNER_LABEL[d.kind]}</div>
+</div>
+<h3>明細</h3>
+<table><thead><tr><th>対象月</th><th>対象のお客様</th><th>区分</th><th class="n">報酬額</th></tr></thead>
+<tbody>${rows}
+<tr class="t"><td colspan="3">小計</td><td class="n">${y(d.total)}</td></tr>
+${d.adj?`<tr><td colspan="3">${escH(d.adjLabel||'調整額')}</td><td class="n">${y(d.adj)}</td></tr>`:''}
+<tr class="t"><td colspan="3">お支払金額</td><td class="n">${y(d.payTotal)}</td></tr>
+</tbody></table>
+${d.note?`<div class="note">${escH(d.note)}</div>`:''}
+<div class="issuer">${escH(d.issuer)}</div>
+</div></body></html>`;
+}
+// 一覧から明細を開く
+function stmtOpenPartner(kind, name, months){
+  sw('vex'); vexSwitchTab('statement');
+  document.getElementById('stmt-kind').value=kind;
+  document.getElementById('stmt-user').value=name;
+  const last=months[months.length-1];
+  if(months.length>1){ document.getElementById('stmt-mode').value='quarter'; document.getElementById('stmt-year').value=last.year; document.getElementById('stmt-qmonth').value=String(last.month); }
+  else { document.getElementById('stmt-mode').value='month'; document.getElementById('stmt-month').value=ymKey(last.year,last.month); }
+  stmtKindChanged();
+}
+// ---- 支払い管理への登録 ----
+const PAYREG_KEY='vex_partner_payreg';
+function partnerTableMonths(kind){
+  const p = kind==='ref' ? 'rr' : 'fr';
+  const mi=document.getElementById(p+'-month'); const [y,mo]=(mi?.value||curYM()).split('-').map(Number);
+  return (document.getElementById(p+'-mode')?.value||'q')==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
+}
+async function registerPartnerPayments(kind){
+  const months=partnerTableMonths(kind), label=periodLabelOf(months), payDate=payDateOf(months);
+  const list=Object.entries(partnerTotals(kind, months)).filter(([,o])=>o.total>0).sort((a,b)=>b[1].total-a[1].total);
+  if(!list.length){ alert(`${label}に登録する${PARTNER_LABEL[kind]}がありません`); return; }
+  const reg=lsGet(PAYREG_KEY,{}), keyOf=n=>`${kind}|${label}|${n}`;
+  const dup=list.filter(([n])=>reg[keyOf(n)]).map(([n])=>n);
+  const sum=list.reduce((a,[,o])=>a+o.total,0);
+  let msg=`${label}の${PARTNER_LABEL[kind]}を支払い管理に登録します。\n\n${list.length}名・合計 ¥${fmt(sum)}\n振込予定日：${payDate}\n\n`+list.slice(0,12).map(([n,o])=>`・${n}　¥${fmt(o.total)}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
+  if(dup.length) msg+=`\n\n⚠ すでに登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
+  if(!confirm(msg+'\n\n登録しますか？')) return;
+  showLoad('登録中...'); let ok=0, fail=0;
+  for(const [n,o] of list){
+    const cl=(S.clients||{})[n]||{};
+    const users=[...new Set(o.rows.map(r=>r.user))];
+    const payload={ name:n, type:PARTNER_LABEL[kind],
+      bankName:cl.bank||'', branchName:cl.branch||'', accountType:cl.accountType||'普通', accountNumber:cl.accountNumber||'', accountHolder:cl.accountHolder||'',
+      rewardAmount:o.total, selfReward:0,
+      directReward: kind==='ref' ? o.direct+o.extra : 0, indirectReward: kind==='ref' ? o.indirect : 0,
+      pcFee:0, transferAmount:o.total, transferDate:payDate, referrer:'', status:'未送金',
+      note:`${label} ${PARTNER_LABEL[kind]}（${users.slice(0,6).join('・')}${users.length>6?' ほか':''}）` };
+    try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(n)]=new Date().toISOString(); } else fail++; }catch(e){ fail++; }
+  }
+  lsSet(PAYREG_KEY, reg); hideLoad();
+  alert(`登録完了：${ok}件 / 失敗：${fail}件`);
+  if(ok>0){ sw('payment'); loadBankTransfers(); }
+}
+
 // 明細データを組み立てる
 const y0 = v => (v<0?'-':'')+'¥'+fmt(Math.abs(v));
 function stmtBuild(){
+  if (stmtKind()!=='client') return stmtBuildPartner(stmtKind());
   const name=(document.getElementById('stmt-user')?.value||'').trim();
   if(!name) return {error:'利用者を選択してください'};
   const mode=document.getElementById('stmt-mode')?.value||'quarter';
@@ -1955,6 +2129,7 @@ function stmtBuild(){
 }
 // 印刷用HTML（白背景・A4）
 function stmtHTML(d){
+  if (d.kind==='ref' || d.kind==='funder') return stmtHTMLPartner(d);
   const y=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
   const r=d.rates;
   const descOf = r => r._src==='custom' ? '個別設定' : r._src==='mix' ? `自己資金 ${+r.ownPct.toFixed(1)}% ／ 資金提供 ${+(100-r.ownPct).toFixed(1)}%` : rateLabel(r);
@@ -2034,6 +2209,7 @@ function stmtPrint(){
 // 他の画面から明細を開く
 function stmtOpenFor(name, opt={}){
   sw('vex'); vexSwitchTab('statement');
+  const kd=document.getElementById('stmt-kind'); if(kd && kd.value!=='client'){ kd.value='client'; stmtKindChanged(); }
   const u=document.getElementById('stmt-user'); if(u) u.value=name;
   const p=document.getElementById('stmt-ownpct'); if(p) p.value=(opt.ownPct!==undefined?opt.ownPct:'');
   if(opt.mode){ document.getElementById('stmt-mode').value=opt.mode; }
@@ -3658,13 +3834,15 @@ function renderFunderRewards(){
   const months = mode==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
   const res=funderRewards(months);
   const list=(FUNDERS.list||[]);
-  if(!list.length){ tb.innerHTML='<tr class="empty"><td colspan="4">資金提供者を登録してください</td></tr>'; return; }
+  if(!list.length){ tb.innerHTML='<tr class="empty"><td colspan="5">資金提供者を登録してください</td></tr>'; return; }
+  const mJs=JSON.stringify(months).replace(/"/g,'&quot;');
   tb.innerHTML = list.map(f=>{ const o=res[f.name]||{total:0,users:{}};
     const det=Object.entries(o.users).map(([u,v])=>`${escH(u)}（¥${fmt(v.profit)} → <span style="color:#ec4899">¥${fmt(v.amount)}</span>）`).join('<br>');
     return `<tr><td>${escH(f.name)}</td><td style="font-size:12px;color:${f.type==='socialnavi'?'var(--gold)':'#ec4899'}">${f.type==='socialnavi'?'SocialNavi':'個人'}</td>
       <td style="font-size:11.5px;color:var(--dim);line-height:1.8">${det||'<span style="color:var(--muted)">—</span>'}</td>
-      <td class="mn" style="text-align:right;color:#ec4899;font-weight:600">¥${fmt(o.total)}</td></tr>`; }).join('')
-    + `<tr class="tot"><td colspan="3">合計（${months.map(x=>x.month+'月').join('・')}）</td><td class="mn" style="text-align:right">¥${fmt(Object.values(res).reduce((a,o)=>a+o.total,0))}</td></tr>`;
+      <td class="mn" style="text-align:right;color:#ec4899;font-weight:600">¥${fmt(o.total)}</td>
+      <td><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenPartner('funder', ${JSON.stringify(f.name).replace(/"/g,'&quot;')}, ${mJs})">🧾 明細</button></td></tr>`; }).join('')
+    + `<tr class="tot"><td colspan="3">合計（${months.map(x=>x.month+'月').join('・')}）</td><td class="mn" style="text-align:right">¥${fmt(Object.values(res).reduce((a,o)=>a+o.total,0))}</td><td></td></tr>`;
 }
 
 function netMsg(msg, type) {
@@ -3692,12 +3870,14 @@ function renderReferrerRewards(){
     });
   });
   const rows=Object.entries(out).sort((a,b)=>(b[1].direct+b[1].indirect)-(a[1].direct+a[1].indirect));
-  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="5">この期間の紹介報酬はありません</td></tr>'; return; }
+  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="6">この期間の紹介報酬はありません</td></tr>'; return; }
+  const mJs=JSON.stringify(months).replace(/"/g,'&quot;');
   tb.innerHTML = rows.map(([n,o])=>`<tr><td>${escH(n)}${isClientName(n)?'':' <span style="font-size:10px;color:var(--muted)">外部</span>'}</td>
     <td class="mn" style="text-align:right;color:#a5c4ff">¥${fmt(o.direct)}</td><td class="mn" style="text-align:right;color:#a5c4ff">¥${fmt(o.indirect)}</td>
     <td class="mn" style="text-align:right;font-weight:600">¥${fmt(o.direct+o.indirect)}</td>
-    <td style="font-size:11px;color:var(--dim);line-height:1.7">${Object.entries(o.from).map(([u,v])=>`${escH(u)}（${v.direct?'直 ¥'+fmt(v.direct):''}${v.direct&&v.indirect?' / ':''}${v.indirect?'間 ¥'+fmt(v.indirect):''}）`).join('<br>')}</td></tr>`).join('')
-    + `<tr class="tot"><td>合計（${months.map(x=>x.month+'月').join('・')}）</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.indirect,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct+o.indirect,0))}</td><td></td></tr>`;
+    <td style="font-size:11px;color:var(--dim);line-height:1.7">${Object.entries(o.from).map(([u,v])=>`${escH(u)}（${v.direct?'直 ¥'+fmt(v.direct):''}${v.direct&&v.indirect?' / ':''}${v.indirect?'間 ¥'+fmt(v.indirect):''}）`).join('<br>')}</td>
+    <td><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenPartner('ref', ${JSON.stringify(n).replace(/"/g,'&quot;')}, ${mJs})">🧾 明細</button></td></tr>`).join('')
+    + `<tr class="tot"><td>合計（${months.map(x=>x.month+'月').join('・')}）</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.indirect,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct+o.indirect,0))}</td><td></td><td></td></tr>`;
 }
 function renderNetworkTab() {
   try { renderFunderList(); renderNetFunderRows(); renderFunderRewards(); renderReferrerRewards(); } catch(e) { console.warn(e); }
