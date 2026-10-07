@@ -451,6 +451,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <select class="inp" id="stmt-mode" onchange="stmtModeChanged();stmtRender()" style="font-family:var(--sans)">
                 <option value="quarter">四半期清算（売上シートの3ヶ月分）</option>
                 <option value="month">単月（売上シートの値）</option>
+                <option value="range">期間を指定（開始月〜終了月）</option>
                 <option value="manual">単月（利益を手入力）</option>
               </select>
             </div>
@@ -460,6 +461,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
                 <select class="inp" id="stmt-qmonth" onchange="stmtRender()" style="font-family:var(--sans)">
                   <option value="3">3月末締め</option><option value="6">6月末締め</option><option value="9">9月末締め</option><option value="12">12月末締め</option>
                 </select></div>
+            </div>
+            <div class="fg stmt-range" style="display:none;gap:8px">
+              <div style="flex:1"><label class="lbl">開始月</label><input class="inp" id="stmt-from" type="month" oninput="stmtRender()" style="font-family:var(--mono)"/></div>
+              <div style="flex:1"><label class="lbl">終了月</label><input class="inp" id="stmt-to" type="month" oninput="stmtRender()" style="font-family:var(--mono)"/></div>
             </div>
             <div class="fg stmt-month" style="display:none">
               <label class="lbl">対象月</label>
@@ -690,8 +695,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <div class="tbl-ttl">💰 紹介者の報酬</div>
               <div style="display:flex;gap:8px;align-items:center">
                 <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('ref')" title="表示中の期間の紹介者報酬を支払い管理に登録">💳 支払い管理に登録</button>
-                <select class="inp" id="rr-mode" onchange="renderReferrerRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option></select>
-                <input class="inp" id="rr-month" type="month" oninput="renderReferrerRewards()" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+                <select class="inp" id="rr-mode" onchange="renderReferrerRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
+                <input class="inp" id="rr-month" type="month" oninput="renderReferrerRewards()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+                <span id="rr-tilde" style="display:none;color:var(--muted)">〜</span>
+                <input class="inp" id="rr-to" type="month" oninput="renderReferrerRewards()" title="終了月" style="display:none;width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
               </div>
             </div>
             <div style="overflow-x:auto"><table>
@@ -704,8 +711,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <div class="tbl-ttl">💴 資金提供者の報酬</div>
               <div style="display:flex;gap:8px;align-items:center">
                 <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('funder')" title="表示中の期間の資金提供者報酬を支払い管理に登録">💳 支払い管理に登録</button>
-                <select class="inp" id="fr-mode" onchange="renderFunderRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option></select>
-                <input class="inp" id="fr-month" type="month" oninput="renderFunderRewards()" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+                <select class="inp" id="fr-mode" onchange="renderFunderRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
+                <input class="inp" id="fr-month" type="month" oninput="renderFunderRewards()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+                <span id="fr-tilde" style="display:none;color:var(--muted)">〜</span>
+                <input class="inp" id="fr-to" type="month" oninput="renderFunderRewards()" title="終了月" style="display:none;width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
               </div>
             </div>
             <table>
@@ -1904,7 +1913,8 @@ function stmtSaveSettings(){
 }
 function stmtModeChanged(){
   const mode=document.getElementById('stmt-mode')?.value||'quarter';
-  ['quarter','month','manual'].forEach(m=>{ document.querySelectorAll('.stmt-'+m).forEach(e=>e.style.display=(m===mode||(m==='month'&&mode==='manual'))?'':'none'); });
+  ['quarter','month','manual','range'].forEach(m=>{ document.querySelectorAll('.stmt-'+m).forEach(e=>e.style.display=(m===mode||(m==='month'&&mode==='manual'))?((m==='range'||m==='quarter')?'flex':''):'none'); });
+  if(mode==='range'){ const f=document.getElementById('stmt-from'), t=document.getElementById('stmt-to'), mm=document.getElementById('stmt-month')?.value||curYM(); if(f&&!f.value) f.value=mm; if(t&&!t.value) t.value=mm; }
 }
 function stmtUserChanged(){
   if (stmtKind()!=='client'){ stmtRender(); return; }
@@ -1946,8 +1956,19 @@ function partnerNames(kind){
 }
 function periodLabelOf(months){
   const a=months[0], b=months[months.length-1];
-  return months.length===1 ? `${a.year}年${a.month}月分` : `${a.year}年${a.month}月〜${b.month}月`;
+  if (months.length===1) return `${a.year}年${a.month}月分`;
+  return a.year===b.year ? `${a.year}年${a.month}月〜${b.month}月（${months.length}ヶ月）` : `${a.year}年${a.month}月〜${b.year}年${b.month}月（${months.length}ヶ月）`;
 }
+// 開始月〜終了月の月リスト（逆順に入れても並べ替え。最大60ヶ月）
+function monthsBetween(fromYM, toYM){
+  if(!fromYM) return [];
+  if(!toYM) toYM=fromYM;
+  if(toYM<fromYM) [fromYM,toYM]=[toYM,fromYM];
+  let [y,m]=fromYM.split('-').map(Number); const [ty,tm]=toYM.split('-').map(Number); const out=[];
+  while((y<ty || (y===ty && m<=tm)) && out.length<60){ out.push({year:y, month:m}); m++; if(m>12){ m=1; y++; } }
+  return out;
+}
+function isQuarterMonths(months){ return months.length===3 && months[2].month%3===0 && months[0].month===months[2].month-2 && months[0].year===months[2].year; }
 function payDateOf(months){ const b=months[months.length-1]; const y=b.month===12?b.year+1:b.year, m=b.month===12?1:b.month+1; return `${y}-${String(m).padStart(2,'0')}-10`; }
 
 // ---- 明細：宛先の切り替え ----
@@ -1968,6 +1989,11 @@ function stmtPeriod(){
     const q=parseInt(document.getElementById('stmt-qmonth')?.value)||3;
     const months=getQuarterMonths(q,y);
     return {months, periodLabel:`${y}年${q-2}月〜${q}月（${q}月末締め）`, payLabel:`${q===12?y+1:y}年${q===12?1:q+1}月10日前後`};
+  }
+  if(mode==='range'){
+    const ms=monthsBetween(document.getElementById('stmt-from')?.value, document.getElementById('stmt-to')?.value);
+    if(!ms.length) return {error:'開始月と終了月を選択してください'};
+    return {months:ms, periodLabel:periodLabelOf(ms), payLabel:''};
   }
   const ym=document.getElementById('stmt-month')?.value||''; if(!ym) return {error:'対象月を選択してください'};
   const [y,m]=ym.split('-').map(Number);
@@ -2035,8 +2061,9 @@ function stmtOpenPartner(kind, name, months){
   sw('vex'); vexSwitchTab('statement');
   document.getElementById('stmt-kind').value=kind;
   document.getElementById('stmt-user').value=name;
-  const last=months[months.length-1];
-  if(months.length>1){ document.getElementById('stmt-mode').value='quarter'; document.getElementById('stmt-year').value=last.year; document.getElementById('stmt-qmonth').value=String(last.month); }
+  const last=months[months.length-1], first=months[0];
+  if(isQuarterMonths(months)){ document.getElementById('stmt-mode').value='quarter'; document.getElementById('stmt-year').value=last.year; document.getElementById('stmt-qmonth').value=String(last.month); }
+  else if(months.length>1){ document.getElementById('stmt-mode').value='range'; document.getElementById('stmt-from').value=ymKey(first.year,first.month); document.getElementById('stmt-to').value=ymKey(last.year,last.month); }
   else { document.getElementById('stmt-mode').value='month'; document.getElementById('stmt-month').value=ymKey(last.year,last.month); }
   stmtKindChanged();
 }
@@ -2044,8 +2071,13 @@ function stmtOpenPartner(kind, name, months){
 const PAYREG_KEY='vex_partner_payreg';
 function partnerTableMonths(kind){
   const p = kind==='ref' ? 'rr' : 'fr';
-  const mi=document.getElementById(p+'-month'); const [y,mo]=(mi?.value||curYM()).split('-').map(Number);
-  return (document.getElementById(p+'-mode')?.value||'q')==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
+  const mi=document.getElementById(p+'-month'); if(mi && !mi.value) mi.value=ymKey(S.year||new Date().getFullYear(), S.month||new Date().getMonth()+1);
+  const mode=document.getElementById(p+'-mode')?.value||'q';
+  const to=document.getElementById(p+'-to'), tl=document.getElementById(p+'-tilde');
+  if(to){ to.style.display = mode==='r' ? '' : 'none'; if(tl) tl.style.display = to.style.display; if(mode==='r' && !to.value) to.value=mi.value; }
+  const [y,mo]=(mi?.value||curYM()).split('-').map(Number);
+  if(mode==='r') return monthsBetween(mi.value, to?.value);
+  return mode==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
 }
 async function registerPartnerPayments(kind){
   const months=partnerTableMonths(kind), label=periodLabelOf(months), payDate=payDateOf(months);
@@ -2091,6 +2123,11 @@ function stmtBuild(){
     months=getQuarterMonths(q,y).map(({year,month})=>({year,month,profit:member?((member.months[year]||{})[month]||0):0}));
     periodLabel=`${y}年${q-2}月〜${q}月（${q}月末締め）`;
     const pm=q===12?1:q+1, py=q===12?y+1:y; payLabel=`${py}年${pm}月10日前後`;
+  } else if(mode==='range'){
+    const ms=monthsBetween(document.getElementById('stmt-from')?.value, document.getElementById('stmt-to')?.value);
+    if(!ms.length) return {error:'開始月と終了月を選択してください'};
+    months=ms.map(({year,month})=>({year,month,profit:member?((member.months[year]||{})[month]||0):0}));
+    periodLabel=periodLabelOf(ms);
   } else {
     const ym=document.getElementById('stmt-month')?.value||'';
     if(!ym) return {error:'対象月を選択してください'};
@@ -3828,10 +3865,7 @@ function funderRewards(months){
 }
 function renderFunderRewards(){
   const tb=document.getElementById('fr-tbody'); if(!tb) return;
-  const mi=document.getElementById('fr-month'); if(mi && !mi.value) mi.value=ymKey(S.year||new Date().getFullYear(), S.month||new Date().getMonth()+1);
-  const [y,mo]=(mi?.value||curYM()).split('-').map(Number);
-  const mode=document.getElementById('fr-mode')?.value||'q';
-  const months = mode==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
+  const months = partnerTableMonths('funder');
   const res=funderRewards(months);
   const list=(FUNDERS.list||[]);
   if(!list.length){ tb.innerHTML='<tr class="empty"><td colspan="5">資金提供者を登録してください</td></tr>'; return; }
@@ -3842,7 +3876,7 @@ function renderFunderRewards(){
       <td style="font-size:11.5px;color:var(--dim);line-height:1.8">${det||'<span style="color:var(--muted)">—</span>'}</td>
       <td class="mn" style="text-align:right;color:#ec4899;font-weight:600">¥${fmt(o.total)}</td>
       <td><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenPartner('funder', ${JSON.stringify(f.name).replace(/"/g,'&quot;')}, ${mJs})">🧾 明細</button></td></tr>`; }).join('')
-    + `<tr class="tot"><td colspan="3">合計（${months.map(x=>x.month+'月').join('・')}）</td><td class="mn" style="text-align:right">¥${fmt(Object.values(res).reduce((a,o)=>a+o.total,0))}</td><td></td></tr>`;
+    + `<tr class="tot"><td colspan="3">合計（${periodLabelOf(months)}）</td><td class="mn" style="text-align:right">¥${fmt(Object.values(res).reduce((a,o)=>a+o.total,0))}</td><td></td></tr>`;
 }
 
 function netMsg(msg, type) {
@@ -3854,9 +3888,7 @@ function netMsg(msg, type) {
 
 function renderReferrerRewards(){
   const tb=document.getElementById('rr-tbody'); if(!tb) return;
-  const mi=document.getElementById('rr-month'); if(mi && !mi.value) mi.value=ymKey(S.year||new Date().getFullYear(), S.month||new Date().getMonth()+1);
-  const [y,mo]=(mi?.value||curYM()).split('-').map(Number);
-  const months = (document.getElementById('rr-mode')?.value||'q')==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
+  const months = partnerTableMonths('ref');
   const out={};
   (S.members||[]).forEach(m=>{
     months.forEach(({year,month})=>{
@@ -3877,7 +3909,7 @@ function renderReferrerRewards(){
     <td class="mn" style="text-align:right;font-weight:600">¥${fmt(o.direct+o.indirect)}</td>
     <td style="font-size:11px;color:var(--dim);line-height:1.7">${Object.entries(o.from).map(([u,v])=>`${escH(u)}（${v.direct?'直 ¥'+fmt(v.direct):''}${v.direct&&v.indirect?' / ':''}${v.indirect?'間 ¥'+fmt(v.indirect):''}）`).join('<br>')}</td>
     <td><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenPartner('ref', ${JSON.stringify(n).replace(/"/g,'&quot;')}, ${mJs})">🧾 明細</button></td></tr>`).join('')
-    + `<tr class="tot"><td>合計（${months.map(x=>x.month+'月').join('・')}）</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.indirect,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct+o.indirect,0))}</td><td></td><td></td></tr>`;
+    + `<tr class="tot"><td>合計（${periodLabelOf(months)}）</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.indirect,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct+o.indirect,0))}</td><td></td><td></td></tr>`;
 }
 function renderNetworkTab() {
   try { renderFunderList(); renderNetFunderRows(); renderFunderRewards(); renderReferrerRewards(); } catch(e) { console.warn(e); }
