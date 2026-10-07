@@ -272,8 +272,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
       <!-- 上部：タブ切替（単独計算 / 一括計算 / 清算スケジュール） -->
       <div style="display:flex;gap:6px;margin-bottom:20px">
-        <button class="pill active" id="vex-tab-single" onclick="vexSwitchTab('single')" style="border-radius:var(--r-sm)">🔢 単独計算</button>
-        <button class="pill" id="vex-tab-batch" onclick="vexSwitchTab('batch')" style="border-radius:var(--r-sm)">👥 一括計算</button>
+        <button class="pill active" id="vex-tab-single" onclick="vexSwitchTab('single')" style="border-radius:var(--r-sm)">🧮 試算</button>
+        <button class="pill" id="vex-tab-batch" onclick="vexSwitchTab('batch')" style="border-radius:var(--r-sm)">💳 清算・支払い</button>
         <button class="pill" id="vex-tab-schedule" onclick="vexSwitchTab('schedule')" style="border-radius:var(--r-sm)">📅 清算スケジュール</button>
         <button class="pill" id="vex-tab-rule" onclick="vexSwitchTab('rule')" style="border-radius:var(--r-sm)">📐 分配ルール</button>
         <button class="pill" id="vex-tab-statement" onclick="vexSwitchTab('statement')" style="border-radius:var(--r-sm)">🧾 報酬明細</button>
@@ -343,44 +343,38 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
       </div>
 
-      <!-- ② 一括計算（クライアント情報連動） -->
+      <!-- ② 清算・支払い（売上シートから自動） -->
       <div id="vex-pane-batch" style="display:none">
-        <div style="display:flex;gap:10px;margin-bottom:16px">
-          <button class="btn btn-secondary btn-sm" onclick="vexLoadFromClients()">📥 クライアント情報から読込</button>
-          <button class="btn btn-secondary btn-sm" onclick="vexAddRow()">＋ 手動追加</button>
-          <div style="margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)">
-            対象月: <input type="month" id="vex-batch-month" class="inp" style="width:150px;padding:6px 10px;font-size:12px" oninput="renderVexBatch()"/>
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+          <select class="inp" id="cs-mode" onchange="renderSettlePay()" style="width:170px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
+          <input class="inp" id="cs-month" type="month" oninput="renderSettlePay()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+          <span id="cs-tilde" style="display:none;color:var(--muted)">〜</span>
+          <input class="inp" id="cs-to" type="month" oninput="renderSettlePay()" title="終了月" style="display:none;width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+          <input class="inp" id="cs-search" placeholder="🔍 名前で絞り込み" oninput="renderSettlePay()" style="width:160px;padding:6px 10px;font-size:12px"/>
+          <label style="font-size:12px;color:var(--dim);display:flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="cs-hide0" checked onchange="renderSettlePay()" style="width:auto"/>報酬0円の人を隠す</label>
+          <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+            <label style="font-size:12px;color:var(--dim)" title="振込額に1人あたり加算する金額（旧一括計算では+2,000円）">振込加算 ¥<input class="inp" id="cs-addfee" type="number" value="2000" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)"/></label>
+            <button class="btn btn-primary btn-sm" onclick="registerClientPayments()">💳 支払い管理に登録</button>
           </div>
         </div>
         <div class="tbl-card">
           <div class="tbl-hdr">
-            <div class="tbl-ttl">👥 利用者一覧 & 報酬計算</div>
-            <div class="tbl-sub" id="vex-batch-count">0名</div>
+            <div class="tbl-ttl">💳 清算・支払い（売上シートから自動計算）<span id="cs-period" style="font-size:12px;color:var(--muted);margin-left:8px"></span></div>
+            <div class="tbl-sub" id="cs-count">0名</div>
           </div>
+          <p style="font-size:12px;color:var(--muted);padding:0 20px 8px">期間内の各月の利益と、その月の割合・プラン・個別率で計算して合計します。紹介者・資金提供者への支払いは 🕸️ 紹介ネットワーク画面から登録します。</p>
           <div style="overflow-x:auto">
             <table style="min-width:1100px">
               <thead><tr>
-                <th>利用者名</th><th>自己資金比率 / 適用率</th><th>月次利益</th>
-                <th style="color:#a5c4ff">ユーザー手取り</th>
-                <th style="color:#a5c4ff">直紹介者</th><th style="color:#a5c4ff">直紹介報酬</th>
-                <th style="color:#a5c4ff">間接紹介者</th><th style="color:#a5c4ff">間接紹介報酬</th>
-                <th style="color:#ec4899">資金提供者</th>
-                <th style="color:var(--gold)">運営</th>
-                <th style="color:var(--green)">リスク管理</th>
-                <th>清算</th><th></th>
+                <th>利用者</th><th>区分</th><th style="text-align:right">期間の利益</th>
+                <th style="text-align:right;color:var(--blue)">本人報酬</th>
+                <th style="text-align:right;color:#a5c4ff">直紹介</th><th style="text-align:right;color:#a5c4ff">間接紹介</th>
+                <th style="text-align:right;color:#ec4899">資金提供者</th>
+                <th style="text-align:right;color:var(--gold)">運営</th><th style="text-align:right;color:var(--green)">リスク管理</th>
+                <th>紹介者</th><th></th>
               </tr></thead>
-              <tbody id="vex-batch-tbody">
-                <tr class="empty"><td colspan="13">「クライアント情報から読込」または「手動追加」でデータを追加してください</td></tr>
-              </tbody>
+              <tbody id="cs-tbody"><tr class="empty"><td colspan="11">データを読み込んでください</td></tr></tbody>
             </table>
-          </div>
-          <div style="padding:14px 20px;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px">
-            <div style="font-size:12px"><span style="color:var(--muted)">ユーザー手取り合計</span><br><span id="vex-total-user" style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--text)">¥0</span></div>
-            <div style="font-size:12px"><span style="color:var(--muted)">直紹介報酬合計</span><br><span id="vex-total-ref1" style="font-family:var(--mono);font-weight:600;font-size:15px;color:#a5c4ff">¥0</span></div>
-            <div style="font-size:12px"><span style="color:var(--muted)">間接紹介報酬合計</span><br><span id="vex-total-ref2" style="font-family:var(--mono);font-weight:600;font-size:15px;color:#a5c4ff">¥0</span></div>
-            <div style="font-size:12px"><span style="color:var(--muted)">運営合計（複利運用）</span><br><span id="vex-total-ops" style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--gold)">¥0</span></div>
-            <div style="font-size:12px"><span style="color:var(--muted)">リスク管理合計（複利運用）</span><br><span id="vex-total-risk" style="font-family:var(--mono);font-weight:600;font-size:15px;color:var(--green)">¥0</span></div>
-            <div style="font-size:12px"><span style="color:var(--muted)">資金提供者合計</span><br><span id="vex-total-funder" style="font-family:var(--mono);font-weight:600;font-size:15px;color:#ec4899">¥0</span></div>
           </div>
         </div>
       </div>
@@ -837,6 +831,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <option value="資金提供">資金提供</option>
           <option value="紹介者報酬">紹介者報酬</option>
           <option value="資金提供者報酬">資金提供者報酬</option>
+          <option value="混合">混合</option>
         </select>
         <select class="inp" id="bank-filter-status" onchange="renderBankTab()" style="width:110px;padding:6px 10px;font-size:12px">
           <option value="">全ステータス</option>
@@ -1536,6 +1531,7 @@ function saveUserRates(){ FUNDS_CACHE = {}; lsSet(USER_RATE_KEY, USER_RATES); }
 function savePlans(){ lsSet(PLAN_KEY, RATE_PLANS); }
 function refreshAfterRateChange(){
   try { renderAll(); } catch(e){}
+  try { renderSettlePay(); } catch(e){}
   try { renderVexBatch(); } catch(e){}
   try { vexCalc(); } catch(e){}
   try { renderPlanLabels(); } catch(e){}
@@ -2100,6 +2096,94 @@ async function registerPartnerPayments(kind){
       pcFee:0, transferAmount:o.total, transferDate:payDate, referrer:'', status:'未送金',
       note:`${label} ${PARTNER_LABEL[kind]}（${users.slice(0,6).join('・')}${users.length>6?' ほか':''}）` };
     try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(n)]=new Date().toISOString(); } else fail++; }catch(e){ fail++; }
+  }
+  lsSet(PAYREG_KEY, reg); hideLoad();
+  alert(`登録完了：${ok}件 / 失敗：${fail}件`);
+  if(ok>0){ sw('payment'); loadBankTransfers(); }
+}
+
+// ================================================================
+// 💳 清算・支払い（クライアント本人の報酬：売上シートから自動）
+// ================================================================
+function csMonths(){
+  const mi=document.getElementById('cs-month'); if(mi && !mi.value) mi.value=ymKey(S.year||new Date().getFullYear(), S.month||new Date().getMonth()+1);
+  const mode=document.getElementById('cs-mode')?.value||'q', to=document.getElementById('cs-to'), tl=document.getElementById('cs-tilde');
+  if(to){ to.style.display = mode==='r' ? '' : 'none'; if(tl) tl.style.display=to.style.display; if(mode==='r' && !to.value) to.value=mi.value; }
+  const [y,mo]=(mi?.value||curYM()).split('-').map(Number);
+  if(mode==='r') return monthsBetween(mi.value, to?.value);
+  return mode==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
+}
+function settleRows(months){
+  return (S.members||[]).map(m=>{
+    const o={name:m.name, profit:0, user:0, refDirect:0, refIndirect:0, funder:0, ops:0, risk:0, labels:new Set(), rates:null};
+    months.forEach(({year,month})=>{
+      const p=(m.months[year]||{})[month]||0;
+      const rt=getRates(m.name, undefined, ymKey(year,month));
+      if(p){ const r=calcVex(p, rt); o.profit+=p; o.user+=r.user; o.refDirect+=r.refDirect; o.refIndirect+=r.refIndirect; o.funder+=r.funder||0; o.ops+=r.ops; o.risk+=r.risk; o.labels.add(rateLabel(rt)+' '+pctTxt(rt.user)); o.rates=rt; }
+    });
+    if(!o.rates) o.rates=getRates(m.name, undefined, ymKey(months[months.length-1].year, months[months.length-1].month));
+    return o;
+  });
+}
+function renderSettlePay(){
+  const tb=document.getElementById('cs-tbody'); if(!tb) return;
+  const months=csMonths(); if(!months.length){ tb.innerHTML='<tr class="empty"><td colspan="11">期間を選択してください</td></tr>'; return; }
+  const pl=document.getElementById('cs-period'); if(pl) pl.textContent=periodLabelOf(months);
+  const q=(document.getElementById('cs-search')?.value||'').trim(), hide0=document.getElementById('cs-hide0')?.checked;
+  let rows=settleRows(months);
+  if(q) rows=rows.filter(r=>r.name.includes(q));
+  if(hide0) rows=rows.filter(r=>r.user!==0);
+  rows.sort((a,b)=>b.user-a.user);
+  document.getElementById('cs-count').textContent=rows.length+'名';
+  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="11">この期間の報酬はありません</td></tr>'; return; }
+  const mJs=JSON.stringify(months).replace(/"/g,'&quot;');
+  const sum=k=>rows.reduce((a,r)=>a+r[k],0), yen=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
+  tb.innerHTML = rows.map(r=>{ const nJs=JSON.stringify(r.name).replace(/"/g,'&quot;'); const lb=[...r.labels];
+    return `<tr>
+      <td style="white-space:nowrap">${escH(r.name)}</td>
+      <td style="font-size:11.5px">${lb.length>1?`<span style="color:var(--green)">月により異なる</span><br><span style="color:var(--muted);font-size:10.5px">${escH(lb.join(' / '))}</span>`:rateBadge(r.rates)}</td>
+      <td class="mn" style="text-align:right">${yen(r.profit)}</td>
+      <td class="mn" style="text-align:right;color:var(--blue);font-weight:600">${yen(r.user)}</td>
+      <td class="mn" style="text-align:right;color:#a5c4ff">${yen(r.refDirect)}</td><td class="mn" style="text-align:right;color:#a5c4ff">${yen(r.refIndirect)}</td>
+      <td class="mn" style="text-align:right;color:#ec4899">${r.funder?yen(r.funder):'—'}</td>
+      <td class="mn" style="text-align:right;color:var(--gold)">${yen(r.ops)}</td><td class="mn" style="text-align:right;color:var(--green)">${yen(r.risk)}</td>
+      <td style="font-size:11.5px;color:var(--dim)">${escH(refsLabel(getRefs(r.name).refs1))||'<span style="color:var(--muted)">—</span>'}</td>
+      <td style="white-space:nowrap"><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenClientPeriod(${nJs}, ${mJs})">🧾 明細</button>
+        <button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="ceOpen(${nJs})" title="紹介者・プランなどを編集">✏️</button></td>
+    </tr>`; }).join('')
+    + `<tr class="tot"><td colspan="2">合計（${rows.length}名）</td><td class="mn" style="text-align:right">${yen(sum('profit'))}</td><td class="mn" style="text-align:right">${yen(sum('user'))}</td><td class="mn" style="text-align:right">${yen(sum('refDirect'))}</td><td class="mn" style="text-align:right">${yen(sum('refIndirect'))}</td><td class="mn" style="text-align:right">${yen(sum('funder'))}</td><td class="mn" style="text-align:right">${yen(sum('ops'))}</td><td class="mn" style="text-align:right">${yen(sum('risk'))}</td><td></td><td></td></tr>`;
+}
+// 明細を期間付きで開く
+function stmtOpenClientPeriod(name, months){
+  stmtOpenFor(name);
+  const last=months[months.length-1], first=months[0];
+  if(isQuarterMonths(months)){ document.getElementById('stmt-mode').value='quarter'; document.getElementById('stmt-year').value=last.year; document.getElementById('stmt-qmonth').value=String(last.month); }
+  else if(months.length>1){ document.getElementById('stmt-mode').value='range'; document.getElementById('stmt-from').value=ymKey(first.year,first.month); document.getElementById('stmt-to').value=ymKey(last.year,last.month); }
+  else { document.getElementById('stmt-mode').value='month'; document.getElementById('stmt-month').value=ymKey(last.year,last.month); }
+  stmtModeChanged(); stmtRender();
+}
+async function registerClientPayments(){
+  const months=csMonths(); if(!months.length){ alert('期間を選択してください'); return; }
+  const label=periodLabelOf(months), payDate=payDateOf(months);
+  const addFee=parseFloat(document.getElementById('cs-addfee')?.value)||0;
+  const list=settleRows(months).filter(r=>r.user>0).sort((a,b)=>b.user-a.user);
+  if(!list.length){ alert(`${label}に登録する本人報酬がありません`); return; }
+  const reg=lsGet(PAYREG_KEY,{}), keyOf=n=>`client|${label}|${n}`;
+  const dup=list.filter(r=>reg[keyOf(r.name)]).map(r=>r.name);
+  const sum=list.reduce((a,r)=>a+r.user,0);
+  let msg=`${label}のクライアント本人報酬を支払い管理に登録します。\n\n${list.length}名・報酬合計 ¥${fmt(sum)}（振込額は1人あたり +¥${fmt(addFee)}）\n振込予定日：${payDate}\n\n`+list.slice(0,12).map(r=>`・${r.name}　¥${fmt(r.user)}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
+  if(dup.length) msg+=`\n\n⚠ すでに登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
+  if(!confirm(msg+'\n\n登録しますか？')) return;
+  showLoad('登録中...'); let ok=0, fail=0;
+  for(const r of list){
+    const cl=(S.clients||{})[r.name]||{};
+    const lb=[...r.labels];
+    const payload={ name:r.name, type: lb.length>1 ? '混合' : (r.rates._src==='own'?'自己資金':r.rates._src==='fund'?'資金提供':rateLabel(r.rates)),
+      bankName:cl.bank||'', branchName:cl.branch||'', accountType:cl.accountType||'普通', accountNumber:cl.accountNumber||'', accountHolder:cl.accountHolder||'',
+      rewardAmount:r.profit, selfReward:r.user, directReward:r.refDirect, indirectReward:r.refIndirect,
+      pcFee:0, transferAmount:r.user+addFee, transferDate:payDate, referrer:getRefs(r.name).ref1||'', status:'未送金',
+      note:`${label} 本人報酬` };
+    try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(r.name)]=new Date().toISOString(); } else fail++; }catch(e){ fail++; }
   }
   lsSet(PAYREG_KEY, reg); hideLoad();
   alert(`登録完了：${ok}件 / 失敗：${fail}件`);
@@ -3394,6 +3478,7 @@ function vexSwitchTab(name) {
   });
   if (name === 'schedule') renderSettlement();
   if (name === 'statement') stmtInit();
+  if (name === 'batch') renderSettlePay();
 }
 
 function vexLoadFromClients() {
