@@ -346,10 +346,13 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <!-- ② 清算・支払い（売上シートから自動） -->
       <div id="vex-pane-batch" style="display:none">
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;align-items:center">
+          <label style="font-size:12.5px;color:var(--text);display:flex;gap:6px;align-items:center;cursor:pointer;background:var(--card2);border:1px solid var(--border2);border-radius:8px;padding:5px 10px" title="チェックを入れると全員が右の期間になります。外すとクライアントごとに期間を選べます">
+            <input type="checkbox" id="cs-bulk" onchange="csBulkChanged()" style="width:auto"/>一括（全員同じ期間）</label>
           <select class="inp" id="cs-mode" onchange="renderSettlePay()" style="width:170px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
           <input class="inp" id="cs-month" type="month" oninput="renderSettlePay()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
           <span id="cs-tilde" style="display:none;color:var(--muted)">〜</span>
           <input class="inp" id="cs-to" type="month" oninput="renderSettlePay()" title="終了月" style="display:none;width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+          <button class="btn btn-secondary btn-sm" id="cs-reset" onclick="csResetRows()" title="個別に選んだ期間を消して、全員を左の期間に戻す" style="display:none">↺ 全員を左の期間に戻す</button>
           <input class="inp" id="cs-search" placeholder="🔍 名前で絞り込み" oninput="renderSettlePay()" style="width:160px;padding:6px 10px;font-size:12px"/>
           <label style="font-size:12px;color:var(--dim);display:flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="cs-hide0" checked onchange="renderSettlePay()" style="width:auto"/>報酬0円の人を隠す</label>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
@@ -364,9 +367,9 @@ tr:hover td{background:rgba(255,255,255,.015)}
           </div>
           <p style="font-size:12px;color:var(--muted);padding:0 20px 8px">期間内の各月の利益と、その月の割合・プラン・個別率で計算して合計します。紹介者・資金提供者への支払いは 🕸️ 紹介ネットワーク画面から登録します。</p>
           <div style="overflow-x:auto">
-            <table style="min-width:1100px">
+            <table style="min-width:1300px">
               <thead><tr>
-                <th>利用者</th><th>区分</th><th style="text-align:right">期間の利益</th>
+                <th>利用者 ／ 期間</th><th>区分</th><th style="text-align:right">期間の利益</th>
                 <th style="text-align:right;color:var(--blue)">本人報酬</th>
                 <th style="text-align:right;color:#a5c4ff">直紹介</th><th style="text-align:right;color:#a5c4ff">間接紹介</th>
                 <th style="text-align:right;color:#ec4899">資金提供者</th>
@@ -2105,42 +2108,74 @@ async function registerPartnerPayments(kind){
 // ================================================================
 // 💳 清算・支払い（クライアント本人の報酬：売上シートから自動）
 // ================================================================
-function csMonths(){
+// ---- 期間：一括（全員同じ） or クライアントごと ----
+const CS_ROWS_KEY='vex_cs_rows', CS_BULK_KEY='vex_cs_bulk';
+let CS_ROWS = lsGet(CS_ROWS_KEY, {}) || {};   // { 名前: { mode:'q'|'m'|'r', from:'YYYY-MM', to:'YYYY-MM' } }
+function specMonths(sp){
+  if(!sp || !sp.from) return [];
+  if(sp.mode==='r') return monthsBetween(sp.from, sp.to||sp.from);
+  const [y,mo]=sp.from.split('-').map(Number);
+  return sp.mode==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
+}
+function csTopSpec(){
   const mi=document.getElementById('cs-month'); if(mi && !mi.value) mi.value=ymKey(S.year||new Date().getFullYear(), S.month||new Date().getMonth()+1);
   const mode=document.getElementById('cs-mode')?.value||'q', to=document.getElementById('cs-to'), tl=document.getElementById('cs-tilde');
   if(to){ to.style.display = mode==='r' ? '' : 'none'; if(tl) tl.style.display=to.style.display; if(mode==='r' && !to.value) to.value=mi.value; }
-  const [y,mo]=(mi?.value||curYM()).split('-').map(Number);
-  if(mode==='r') return monthsBetween(mi.value, to?.value);
-  return mode==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
+  return {mode, from:mi?.value||curYM(), to:to?.value||''};
 }
-function settleRows(months){
-  return (S.members||[]).map(m=>{
-    const o={name:m.name, profit:0, user:0, refDirect:0, refIndirect:0, funder:0, ops:0, risk:0, labels:new Set(), rates:null};
-    months.forEach(({year,month})=>{
-      const p=(m.months[year]||{})[month]||0;
-      const rt=getRates(m.name, undefined, ymKey(year,month));
-      if(p){ const r=calcVex(p, rt); o.profit+=p; o.user+=r.user; o.refDirect+=r.refDirect; o.refIndirect+=r.refIndirect; o.funder+=r.funder||0; o.ops+=r.ops; o.risk+=r.risk; o.labels.add(rateLabel(rt)+' '+pctTxt(rt.user)); o.rates=rt; }
-    });
-    if(!o.rates) o.rates=getRates(m.name, undefined, ymKey(months[months.length-1].year, months[months.length-1].month));
-    return o;
+function csMonths(){ return specMonths(csTopSpec()); }
+function csBulk(){ const el=document.getElementById('cs-bulk'); return el ? el.checked : true; }
+function csRowSpec(name){ return csBulk() ? csTopSpec() : (CS_ROWS[name] || csTopSpec()); }
+function csBulkChanged(){ lsSet(CS_BULK_KEY, csBulk()); renderSettlePay(); }
+function csSetRow(name, field, val){
+  const sp = { ...(CS_ROWS[name] || csTopSpec()) }; sp[field]=val;
+  if(field==='mode' && val==='r' && !sp.to) sp.to=sp.from;
+  CS_ROWS[name]=sp; lsSet(CS_ROWS_KEY, CS_ROWS); renderSettlePay();
+}
+function csResetRows(){ if(!confirm('クライアントごとに選んだ期間をすべて消して、左の期間に戻しますか？')) return; CS_ROWS={}; lsSet(CS_ROWS_KEY, CS_ROWS); renderSettlePay(); }
+function settleRow(m, months){
+  const o={name:m.name, months, profit:0, user:0, refDirect:0, refIndirect:0, funder:0, ops:0, risk:0, labels:new Set(), rates:null};
+  months.forEach(({year,month})=>{
+    const p=(m.months[year]||{})[month]||0;
+    const rt=getRates(m.name, undefined, ymKey(year,month));
+    if(p){ const r=calcVex(p, rt); o.profit+=p; o.user+=r.user; o.refDirect+=r.refDirect; o.refIndirect+=r.refIndirect; o.funder+=r.funder||0; o.ops+=r.ops; o.risk+=r.risk; o.labels.add(rateLabel(rt)+' '+pctTxt(rt.user)); o.rates=rt; }
   });
+  const last=months[months.length-1];
+  if(!o.rates) o.rates=getRates(m.name, undefined, last ? ymKey(last.year,last.month) : undefined);
+  return o;
+}
+// 全員分（それぞれの期間で）
+function settleRowsAll(){ return (S.members||[]).map(m=>settleRow(m, specMonths(csRowSpec(m.name)))); }
+function settleRows(months){ return (S.members||[]).map(m=>settleRow(m, months)); }
+function csRowControls(name){
+  const sp=csRowSpec(name), bulk=csBulk(), nJs=JSON.stringify(name).replace(/"/g,'&quot;'), dis=bulk?'disabled':'';
+  const st='padding:3px 6px;font-size:11px;font-family:var(--mono);background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text)';
+  return `<div style="display:flex;gap:4px;margin-top:5px;align-items:center;flex-wrap:wrap;${bulk?'opacity:.55':''}">
+    <select ${dis} onchange="csSetRow(${nJs},'mode',this.value)" style="${st};font-family:var(--sans)">
+      <option value="q" ${sp.mode==='q'?'selected':''}>四半期</option><option value="m" ${sp.mode==='m'?'selected':''}>単月</option><option value="r" ${sp.mode==='r'?'selected':''}>期間指定</option></select>
+    <input ${dis} type="month" value="${sp.from||''}" onchange="csSetRow(${nJs},'from',this.value)" style="${st};width:118px"/>
+    ${sp.mode==='r'?`<span style="color:var(--muted);font-size:11px">〜</span><input ${dis} type="month" value="${sp.to||''}" onchange="csSetRow(${nJs},'to',this.value)" style="${st};width:118px"/>`:''}
+  </div>`;
 }
 function renderSettlePay(){
   const tb=document.getElementById('cs-tbody'); if(!tb) return;
-  const months=csMonths(); if(!months.length){ tb.innerHTML='<tr class="empty"><td colspan="11">期間を選択してください</td></tr>'; return; }
-  const pl=document.getElementById('cs-period'); if(pl) pl.textContent=periodLabelOf(months);
+  const bulkEl=document.getElementById('cs-bulk');
+  if(bulkEl && !bulkEl.dataset.init){ const v=lsGet(CS_BULK_KEY, null); bulkEl.checked = v===null ? false : !!v; bulkEl.dataset.init='1'; }
+  const bulk=csBulk(), topMonths=csMonths();
+  const rs=document.getElementById('cs-reset'); if(rs) rs.style.display = (!bulk && Object.keys(CS_ROWS).length) ? '' : 'none';
+  const pl=document.getElementById('cs-period'); if(pl) pl.textContent = bulk ? (topMonths.length?periodLabelOf(topMonths):'') : '期間はクライアントごと（初期値：'+(topMonths.length?periodLabelOf(topMonths):'—')+'）';
   const q=(document.getElementById('cs-search')?.value||'').trim(), hide0=document.getElementById('cs-hide0')?.checked;
-  let rows=settleRows(months);
+  let rows=settleRowsAll();
   if(q) rows=rows.filter(r=>r.name.includes(q));
-  if(hide0) rows=rows.filter(r=>r.user!==0);
+  if(hide0) rows=rows.filter(r=>r.user!==0 || (!bulk && CS_ROWS[r.name]));
   rows.sort((a,b)=>b.user-a.user);
   document.getElementById('cs-count').textContent=rows.length+'名';
   if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="11">この期間の報酬はありません</td></tr>'; return; }
-  const mJs=JSON.stringify(months).replace(/"/g,'&quot;');
   const sum=k=>rows.reduce((a,r)=>a+r[k],0), yen=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
-  tb.innerHTML = rows.map(r=>{ const nJs=JSON.stringify(r.name).replace(/"/g,'&quot;'); const lb=[...r.labels];
+  tb.innerHTML = rows.map(r=>{ const nJs=JSON.stringify(r.name).replace(/"/g,'&quot;'); const lb=[...r.labels]; const mJs=JSON.stringify(r.months).replace(/"/g,'&quot;');
     return `<tr>
-      <td style="white-space:nowrap">${escH(r.name)}</td>
+      <td style="white-space:nowrap;min-width:310px"><div>${escH(r.name)}${!bulk&&CS_ROWS[r.name]?' <span style="font-size:10px;color:var(--blue)">個別</span>':''}</div>${csRowControls(r.name)}
+        <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${r.months.length?escH(periodLabelOf(r.months)):'期間を選択'}</div></td>
       <td style="font-size:11.5px">${lb.length>1?`<span style="color:var(--green)">月により異なる</span><br><span style="color:var(--muted);font-size:10.5px">${escH(lb.join(' / '))}</span>`:rateBadge(r.rates)}</td>
       <td class="mn" style="text-align:right">${yen(r.profit)}</td>
       <td class="mn" style="text-align:right;color:var(--blue);font-weight:600">${yen(r.user)}</td>
@@ -2148,13 +2183,14 @@ function renderSettlePay(){
       <td class="mn" style="text-align:right;color:#ec4899">${r.funder?yen(r.funder):'—'}</td>
       <td class="mn" style="text-align:right;color:var(--gold)">${yen(r.ops)}</td><td class="mn" style="text-align:right;color:var(--green)">${yen(r.risk)}</td>
       <td style="font-size:11.5px;color:var(--dim)">${escH(refsLabel(getRefs(r.name).refs1))||'<span style="color:var(--muted)">—</span>'}</td>
-      <td style="white-space:nowrap"><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenClientPeriod(${nJs}, ${mJs})">🧾 明細</button>
+      <td style="white-space:nowrap"><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenClientPeriod(${nJs}, ${mJs})" ${r.months.length?'':'disabled'}>🧾 明細</button>
         <button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="ceOpen(${nJs})" title="紹介者・プランなどを編集">✏️</button></td>
     </tr>`; }).join('')
     + `<tr class="tot"><td colspan="2">合計（${rows.length}名）</td><td class="mn" style="text-align:right">${yen(sum('profit'))}</td><td class="mn" style="text-align:right">${yen(sum('user'))}</td><td class="mn" style="text-align:right">${yen(sum('refDirect'))}</td><td class="mn" style="text-align:right">${yen(sum('refIndirect'))}</td><td class="mn" style="text-align:right">${yen(sum('funder'))}</td><td class="mn" style="text-align:right">${yen(sum('ops'))}</td><td class="mn" style="text-align:right">${yen(sum('risk'))}</td><td></td><td></td></tr>`;
 }
 // 明細を期間付きで開く
 function stmtOpenClientPeriod(name, months){
+  if(!months||!months.length) return;
   stmtOpenFor(name);
   const last=months[months.length-1], first=months[0];
   if(isQuarterMonths(months)){ document.getElementById('stmt-mode').value='quarter'; document.getElementById('stmt-year').value=last.year; document.getElementById('stmt-qmonth').value=String(last.month); }
@@ -2163,27 +2199,30 @@ function stmtOpenClientPeriod(name, months){
   stmtModeChanged(); stmtRender();
 }
 async function registerClientPayments(){
-  const months=csMonths(); if(!months.length){ alert('期間を選択してください'); return; }
-  const label=periodLabelOf(months), payDate=payDateOf(months);
+  const bulk=csBulk();
   const addFee=parseFloat(document.getElementById('cs-addfee')?.value)||0;
-  const list=settleRows(months).filter(r=>r.user>0).sort((a,b)=>b.user-a.user);
-  if(!list.length){ alert(`${label}に登録する本人報酬がありません`); return; }
-  const reg=lsGet(PAYREG_KEY,{}), keyOf=n=>`client|${label}|${n}`;
-  const dup=list.filter(r=>reg[keyOf(r.name)]).map(r=>r.name);
+  const q=(document.getElementById('cs-search')?.value||'').trim();
+  let list=settleRowsAll().filter(r=>r.months.length && r.user>0);
+  if(q) list=list.filter(r=>r.name.includes(q));
+  list.sort((a,b)=>b.user-a.user);
+  if(!list.length){ alert('登録する本人報酬がありません'); return; }
+  const reg=lsGet(PAYREG_KEY,{}), keyOf=r=>`client|${periodLabelOf(r.months)}|${r.name}`;
+  const dup=list.filter(r=>reg[keyOf(r)]).map(r=>r.name);
   const sum=list.reduce((a,r)=>a+r.user,0);
-  let msg=`${label}のクライアント本人報酬を支払い管理に登録します。\n\n${list.length}名・報酬合計 ¥${fmt(sum)}（振込額は1人あたり +¥${fmt(addFee)}）\n振込予定日：${payDate}\n\n`+list.slice(0,12).map(r=>`・${r.name}　¥${fmt(r.user)}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
-  if(dup.length) msg+=`\n\n⚠ すでに登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
+  const head = bulk ? `${periodLabelOf(list[0].months)}のクライアント本人報酬` : 'クライアント本人報酬（期間はクライアントごと）';
+  let msg=`${head}を支払い管理に登録します。${q?`\n（絞り込み中：「${q}」）`:''}\n\n${list.length}名・報酬合計 ¥${fmt(sum)}（振込額は1人あたり +¥${fmt(addFee)}）\n振込予定日：各期間の翌月10日\n\n`
+    +list.slice(0,12).map(r=>`・${r.name}　¥${fmt(r.user)}${bulk?'':'　'+periodLabelOf(r.months)}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
+  if(dup.length) msg+=`\n\n⚠ すでに同じ期間で登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
   if(!confirm(msg+'\n\n登録しますか？')) return;
   showLoad('登録中...'); let ok=0, fail=0;
   for(const r of list){
-    const cl=(S.clients||{})[r.name]||{};
-    const lb=[...r.labels];
+    const cl=(S.clients||{})[r.name]||{}, lb=[...r.labels], label=periodLabelOf(r.months);
     const payload={ name:r.name, type: lb.length>1 ? '混合' : (r.rates._src==='own'?'自己資金':r.rates._src==='fund'?'資金提供':rateLabel(r.rates)),
       bankName:cl.bank||'', branchName:cl.branch||'', accountType:cl.accountType||'普通', accountNumber:cl.accountNumber||'', accountHolder:cl.accountHolder||'',
       rewardAmount:r.profit, selfReward:r.user, directReward:r.refDirect, indirectReward:r.refIndirect,
-      pcFee:0, transferAmount:r.user+addFee, transferDate:payDate, referrer:getRefs(r.name).ref1||'', status:'未送金',
+      pcFee:0, transferAmount:r.user+addFee, transferDate:payDateOf(r.months), referrer:getRefs(r.name).ref1||'', status:'未送金',
       note:`${label} 本人報酬` };
-    try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(r.name)]=new Date().toISOString(); } else fail++; }catch(e){ fail++; }
+    try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(r)]=new Date().toISOString(); } else fail++; }catch(e){ fail++; }
   }
   lsSet(PAYREG_KEY, reg); hideLoad();
   alert(`登録完了：${ok}件 / 失敗：${fail}件`);
