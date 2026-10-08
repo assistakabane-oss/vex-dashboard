@@ -1299,7 +1299,8 @@ function getRefs(name, depth=0){
   if (Array.isArray(m.refs2)){ const q=refListPct(m.refs2); refs2=q.list; ref2Pct=q.pct; ref2=refs2.map(r=>r.name).join('・'); ref2src='manual'; }
   else if (m.ref2!==undefined && m.ref2!==null){ ref2=canonName(m.ref2); ref2src='manual'; refs2 = ref2 ? [{name:ref2, share:1}] : []; }
   else ref2 = [...new Set(refs1.flatMap(r=>r.up.map(x=>x.name)))].join('・');
-  const out = {ref1:refs1.map(r=>r.name).join('・'), ref2, refs1, refPct, refs2, ref2Pct, src, ref2src, check, note, raw:SHEET_REFS[name]||''};
+  const noMerge = ref2src==='manual' && !ref2 && !!m.ref2NoMerge;  // 間接紹介者なし・直紹介に上乗せしない（運営へ）
+  const out = {ref1:refs1.map(r=>r.name).join('・'), ref2, refs1, refPct, refs2, ref2Pct, noMerge, src, ref2src, check, note, raw:SHEET_REFS[name]||''};
   if (depth===0) REFS_CACHE[name]=out;
   return out;
 }
@@ -1497,6 +1498,7 @@ function blendRates(ownPct){
 }
 // 間接紹介者がいない場合は、間接紹介の取り分を直紹介者に上乗せする
 function mergeRefRates(r, ref1, ref2, name){
+  if (name && !ref2 && (r.ref2||0)>0 && getRefs(name).noMerge) r = { ...r, ops:r6((r.ops||0)+(r.ref2||0)), ref2:0, _ref2ToOps:true };
   if (ref1 && !ref2 && (r.ref2||0)>0) r = { ...r, ref1:r6((r.ref1||0)+(r.ref2||0)), ref2:0, _refMerged:true };
   // 直紹介者が複数で「利益の○%」を入力した人：プランの直紹介との差（超えた分）を運営の取り分から引く
   if (name){ const f=getRefs(name);
@@ -1716,7 +1718,7 @@ function ceOpen(name){
   const rf = getRefs(name);
   CE = { name, plan: u.custom ? 'custom' : (u.plan||''), custom: u.custom ? {...u.custom} : null, funders: userFunders(name).map(l=>({...l})),
          refs1: ceRows(rf.refs1), refsManual: rf.src==='manual',
-         r2mode: rf.ref2src!=='manual' ? 'auto' : (rf.refs2&&rf.refs2.length ? 'manual' : 'none'), refs2: ceRows(rf.refs2||[]) };
+         r2mode: rf.ref2src!=='manual' ? 'auto' : (rf.refs2&&rf.refs2.length ? 'manual' : (rf.noMerge ? 'none0' : 'none')), refs2: ceRows(rf.refs2||[]) };
   document.getElementById('ce-title').textContent = `✏️ ${name}`;
   ceRender();
   const m=document.getElementById('ce-modal'); m.style.display='flex';
@@ -1752,7 +1754,8 @@ function ceRender(){
     <select class="inp" id="ce-r2mode" onchange="ceSetR2Mode(this.value)" style="font-family:var(--sans);margin-bottom:8px">
       <option value="auto" ${CE.r2mode==='auto'?'selected':''}>自動（直紹介者の紹介者）：${escH(CE.autoRef2Text)}</option>
       <option value="manual" ${CE.r2mode==='manual'?'selected':''}>指定する（名前と利益の○%）</option>
-      <option value="none" ${CE.r2mode==='none'?'selected':''}>間接紹介者なし（間接紹介の分は直紹介者へ）</option>
+      <option value="none" ${CE.r2mode==='none'?'selected':''}>間接紹介者なし（間接紹介の分は直紹介者へ上乗せ）</option>
+      <option value="none0" ${CE.r2mode==='none0'?'selected':''}>間接紹介者なし（直紹介に上乗せしない・運営の取り分へ）</option>
     </select>
     ${CE.r2mode==='manual' ? `<div id="ce-refs2">${ceRowsHtml('refs2')}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -1761,7 +1764,7 @@ function ceRender(){
     </div>
     <div id="ce-sum-refs2" style="font-size:11.5px;color:var(--muted);margin-top:6px"></div>` : ''}
     <div id="ce-sum-ops" style="font-size:11.5px;margin-top:6px"></div>
-    <p class="help">紹介報酬は「利益の○%」で入力します（今月のプランの率で表示：直紹介 ${+(CE.pool1*100).toFixed(2)}%・間接紹介 ${+(CE.pool2*100).toFixed(2)}%）。人ごとに率を変えられます。プランの率を超えた分は運営の取り分から引き、少ない分は運営の取り分になります。率を変えなければ、毎月プランの率で計算します。<br>間接紹介者：「自動」は各直紹介者の紹介者に同じ割合で分けます（紹介者がいない直紹介者の分はその人に上乗せ）。「なし」にすると間接紹介の分は直紹介者の報酬になります。
+    <p class="help">紹介報酬は「利益の○%」で入力します（今月のプランの率で表示：直紹介 ${+(CE.pool1*100).toFixed(2)}%・間接紹介 ${+(CE.pool2*100).toFixed(2)}%）。人ごとに率を変えられます。プランの率を超えた分は運営の取り分から引き、少ない分は運営の取り分になります。率を変えなければ、毎月プランの率で計算します。<br>間接紹介者：「自動」は各直紹介者の紹介者に同じ割合で分けます（紹介者がいない直紹介者の分はその人に上乗せ）。「なし（上乗せ）」は間接紹介の分が直紹介者の報酬になり、「なし（上乗せしない）」は運営の取り分になります。
       ${auto.raw?`<br>シートの紹介者欄：「${escH(auto.raw)}」${auto.check?` <span style="color:var(--gold)">⚠ 要確認：${escH(auto.note)}</span>`:''}`:'<br>シートの紹介者欄：空欄'}</p>
     ${sec('プラン')}
     <select class="inp" id="ce-plan" onchange="CE.plan=this.value; if(CE.plan==='custom'&&!CE.custom){CE.custom=Object.fromEntries(RATE_KEYS.map(k=>[k,getRatesRaw(CE.name)[k]||0]));} ceRender()" style="font-family:var(--sans)">
@@ -1802,7 +1805,7 @@ function cePools(){
   const n=CE.name, raw=getRatesRaw(n), a=ceAutoRef2Names(n);
   CE.autoRef2Text=a.text;
   const has2 = CE.r2mode==='manual' ? CE.refs2.some(r=>String(r.name).trim()) : CE.r2mode==='auto' ? a.names.length>0 : false;
-  CE.pool2 = raw.ref2||0; CE.pool1 = (raw.ref1||0) + (has2 ? 0 : (raw.ref2||0)); CE.has2=has2; CE.ops=raw.ops||0;
+  CE.pool2 = raw.ref2||0; CE.pool1 = (raw.ref1||0) + (has2 || CE.r2mode==='none0' ? 0 : (raw.ref2||0)); CE.has2=has2; CE.ops=raw.ops||0;
 }
 const ceP = (r, pool) => r.touched ? (parseFloat(r.p)||0) : +((+r.share||0)*pool*100).toFixed(2);
 function ceRowsHtml(k){
@@ -1818,7 +1821,7 @@ function ceShareSum(){
   const part=(k,pool,label)=>{ const rows=CE[k].filter(r=>String(r.name).trim()); const tp=f2(rows.reduce((a,r)=>a+ceP(r,pool),0)), pl=f2(pool*100), d=f2(tp-pl);
     const el=document.getElementById('ce-sum-'+k); if(el){ el.textContent = (rows.length>1||Math.abs(d)>0.001) ? `合計 利益の${tp}%（プランの${label} ${pl}%）${d>0.001?`　超えた ${d}% は運営から引きます`:d<-0.001?`　残り ${-d}% は運営の取り分になります`:''}` : ''; el.style.color=Math.abs(d)>0.001?'var(--gold)':'var(--muted)'; }
     return rows.length ? d : 0; };
-  const d1=part('refs1', CE.pool1, '直紹介'), d2 = CE.r2mode==='manual' ? part('refs2', CE.pool2, '間接紹介') : 0;
+  const d1=part('refs1', CE.pool1, '直紹介'), d2 = CE.r2mode==='manual' ? part('refs2', CE.pool2, '間接紹介') : (CE.r2mode==='none0' && CE.refs1.some(r=>String(r.name).trim()) ? -f2(CE.pool2*100) : 0);
   const o=document.getElementById('ce-sum-ops'); if(!o) return;
   const d=f2(d1+d2), ops=f2(CE.ops*100), after=f2(ops-d);
   o.textContent = Math.abs(d)>0.001 ? `運営の取り分 ${ops}% → ${after}%${after<0?'　⚠ 運営がマイナスになります':''}` : '';
@@ -1848,6 +1851,7 @@ function ceSave(){
   const entry = {};
   if (refs) entry.refs1 = refs;
   if (CE.r2mode==='none') entry.ref2 = '';
+  else if (CE.r2mode==='none0'){ entry.ref2 = ''; entry.ref2NoMerge = true; }
   else if (CE.r2mode==='manual'){ const r2=ceSaveRows(CE.refs2, CE.pool2); if(r2.length) entry.refs2=r2; else entry.ref2=''; }
   if (Object.keys(entry).length) CLIENT_REFS[n]=entry; else delete CLIENT_REFS[n];
   USER_RATES[n]=USER_RATES[n]||{};
@@ -2368,7 +2372,7 @@ function stmtHTML(d){
     <table><thead><tr><th>区分</th><th class="n">率</th><th class="n">金額</th><th>備考</th></tr></thead><tbody>
       <tr><td>ご本人報酬</td><td class="n">${rp('user')}</td><td class="n">${y(d.totalUser)}</td><td></td></tr>
       <tr><td>直紹介者報酬</td><td class="n">${rp('ref1')}</td><td class="n">${y(d.totalRef1)}</td><td>${escH(d.payDirect||d.ref1)}</td></tr>
-      <tr><td>間接紹介者報酬</td><td class="n">${rp('ref2')}</td><td class="n">${y(d.totalRef2)}</td><td>${d.payIndirect?escH(d.payIndirect):(d.ref2?escH(d.ref2):(d.ref1&&r._refMerged?'間接紹介者なし（直紹介者へ）':''))}</td></tr>
+      <tr><td>間接紹介者報酬</td><td class="n">${rp('ref2')}</td><td class="n">${y(d.totalRef2)}</td><td>${d.payIndirect?escH(d.payIndirect):(d.ref2?escH(d.ref2):(r._ref2ToOps?'間接紹介者なし（運営へ）':d.ref1&&r._refMerged?'間接紹介者なし（直紹介者へ）':''))}</td></tr>
       <tr><td>運営</td><td class="n">${rp('ops')}</td><td class="n">${y(d.totalOps)}</td><td>複利運用</td></tr>
       <tr><td>リスク管理</td><td class="n">${rp('risk')}</td><td class="n">${y(d.totalRisk)}</td><td>複利運用</td></tr>
       ${d.totalFunder||r.funder ? `<tr><td>資金提供者報酬</td><td class="n">${rp('funder')}</td><td class="n">${y(d.totalFunder)}</td><td>${escH(userFunders(d.name).map(l=>l.funder).join('・'))}</td></tr>` : ''}
@@ -2819,7 +2823,7 @@ function renderCliTab(){
     const fds=userFunders(name).map(l=>escH(l.funder)).join('<br>')||'<span style="color:var(--muted)">—</span>';
     return`<tr style="cursor:pointer" ondblclick="ceOpen(${nJs})"><td class="mn" style="font-size:11.5px;color:var(--muted)">${c.clientNo||'—'}</td><td><div class="mc"><div class="av" style="background:${col}22;color:${col}">${name[0]}</div>${name}</div></td>
       <td style="font-size:12.5px">${refCell(refsLabel(refs.refs1), refs.src==='manual', refs.check&&refs.src==='sheet', refs.note+(refs.raw?'（シート：'+refs.raw+'）':''))}${refs.refs1.length>1&&!(refs.check&&refs.src==='sheet')?' <span style="font-size:10px;color:var(--muted)">複数</span>':''}</td>
-      <td style="font-size:12.5px">${refCell(refs.ref2src==='manual' && refs.refs2 ? (refs.refs2.length ? refsLabel(refs.refs2) : 'なし') : refs.ref2, refs.ref2src==='manual', false, '')}</td>
+      <td style="font-size:12.5px">${refCell(refs.ref2src==='manual' && refs.refs2 ? (refs.refs2.length ? refsLabel(refs.refs2) : (refs.noMerge ? 'なし（運営へ）' : 'なし')) : refs.ref2, refs.ref2src==='manual', false, '')}</td>
       <td>${rateBadge(getRates(name))}</td>
       <td style="font-size:12px;color:#ec4899">${fds}</td>
       <td class="mn">¥${fmt(c.bankBalance||0)}</td><td style="line-height:1.8">${br}</td>
