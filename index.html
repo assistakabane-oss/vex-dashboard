@@ -2070,7 +2070,7 @@ function stmtOpenPartner(kind, name, months){
 const PAYREG_KEY='vex_partner_payreg';
 function partnerTableMonths(kind){
   const p = kind==='ref' ? 'rr' : 'fr';
-  const mi=document.getElementById(p+'-month'); if(mi && !mi.value) mi.value=ymKey(S.year||new Date().getFullYear(), S.month||new Date().getMonth()+1);
+  const mi=document.getElementById(p+'-month'); if(mi && !mi.value) mi.value=latestSalesYM();
   const mode=document.getElementById(p+'-mode')?.value||'q';
   const to=document.getElementById(p+'-to'), tl=document.getElementById(p+'-tilde');
   if(to){ to.style.display = mode==='r' ? '' : 'none'; if(tl) tl.style.display = to.style.display; if(mode==='r' && !to.value) to.value=mi.value; }
@@ -2117,8 +2117,14 @@ function specMonths(sp){
   const [y,mo]=sp.from.split('-').map(Number);
   return sp.mode==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
 }
+// 売上がある一番新しい月
+function latestSalesYM(){
+  let best='';
+  (S.members||[]).forEach(m=>Object.entries(m.months||{}).forEach(([y,ms])=>Object.entries(ms||{}).forEach(([mo,v])=>{ if(v){ const k=ymKey(+y,+mo); if(k>best) best=k; } })));
+  return best || curYM();
+}
 function csTopSpec(){
-  const mi=document.getElementById('cs-month'); if(mi && !mi.value) mi.value=ymKey(S.year||new Date().getFullYear(), S.month||new Date().getMonth()+1);
+  const mi=document.getElementById('cs-month'); if(mi && !mi.value) mi.value=latestSalesYM();
   const mode=document.getElementById('cs-mode')?.value||'q', to=document.getElementById('cs-to'), tl=document.getElementById('cs-tilde');
   if(to){ to.style.display = mode==='r' ? '' : 'none'; if(tl) tl.style.display=to.style.display; if(mode==='r' && !to.value) to.value=mi.value; }
   return {mode, from:mi?.value||curYM(), to:to?.value||''};
@@ -2167,10 +2173,10 @@ function renderSettlePay(){
   const q=(document.getElementById('cs-search')?.value||'').trim(), hide0=document.getElementById('cs-hide0')?.checked;
   let rows=settleRowsAll();
   if(q) rows=rows.filter(r=>r.name.includes(q));
-  if(hide0) rows=rows.filter(r=>r.user!==0 || (!bulk && CS_ROWS[r.name]));
+  if(hide0 && !q) rows=rows.filter(r=>r.user!==0 || (!bulk && CS_ROWS[r.name]));
   rows.sort((a,b)=>b.user-a.user);
   document.getElementById('cs-count').textContent=rows.length+'名';
-  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="11">この期間の報酬はありません</td></tr>'; return; }
+  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="11">この期間の報酬はありません（「報酬0円の人を隠す」を外すか、名前で検索すると全員表示されます）</td></tr>'; return; }
   const sum=k=>rows.reduce((a,r)=>a+r[k],0), yen=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
   tb.innerHTML = rows.map(r=>{ const nJs=JSON.stringify(r.name).replace(/"/g,'&quot;'); const lb=[...r.labels]; const mJs=JSON.stringify(r.months).replace(/"/g,'&quot;');
     return `<tr>
