@@ -4379,7 +4379,8 @@ function histStore(arr) { localStorage.setItem(HIST_KEY, JSON.stringify(arr)); }
 // GASからデータを取得してLocalStorageに同期
 async function histLoadRemote() {
   try {
-    const arr = await gasGet('getHistory');
+    const res = await gasGet('getHistory');
+    const arr = Array.isArray(res) ? res : ((res&&res.data)||[]);
     // idを数値変換して保存
     const normalized = arr.map(r=>({...r, id: Number(r.id)||r.id}));
     histStore(normalized);
@@ -4465,8 +4466,23 @@ function histMsg(msg, type) {
   setTimeout(()=>el.className='alert hidden', 3000);
 }
 
+// 支払済み額（🧾 清算・支払い画面で登録）を清算履歴の行にする
+function paidHistRows(){
+  const out=[];
+  ['client','ref'].forEach(kind=>{
+    paidRows(kind).forEach(r=>{
+      const last=r.months[r.months.length-1]; if(!last) return;
+      const m = kind==='client' ? (S.members||[]).find(x=>x.name===r.name) : null;
+      const profit = m ? settleRow(m, r.months).profit : 0;
+      out.push({ _paid:true, kind, pk:r.pk, ym:ymKey(last.year,last.month), user:r.name, period:r.label, profit,
+        user_reward: kind==='client' ? r.tot : 0, ref1_reward: kind==='ref' ? r.tot : 0, ref2_reward:0, recalc:r.recalc, diff:r.diff,
+        paid:r.paid, exp:r.exp, oth:r.oth, memo:r.memo, applied:r.applied });
+    });
+  });
+  return out;
+}
 function renderHistoryTab() {
-  const arr = histLoad();
+  const arr = [...histLoad(), ...paidHistRows()].sort((a,b)=>String(b.ym||'').localeCompare(String(a.ym||'')));
   const filterYear = document.getElementById('hist-filter-year')?.value||'';
   const filterMonth = document.getElementById('hist-filter-month')?.value||'';
 
@@ -4503,6 +4519,24 @@ function renderHistoryTab() {
     tbody.innerHTML = filtered.map(r=>{
       const [ry,rm] = (r.ym||'').split('-');
       const ymLbl = ry&&rm ? `${ry}年${parseInt(rm)}月` : '—';
+      if (r._paid){
+        const J=x=>JSON.stringify(x).replace(/"/g,'&quot;'), y2=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
+        const det=[`振込 ¥${fmt(r.paid)}`, r.exp?`経費 ¥${fmt(r.exp)}`:'', r.oth?`その他 ¥${fmt(r.oth)}${r.memo?'（'+escH(r.memo)+'）':''}`:''].filter(Boolean).join('・');
+        const st = r.applied ? `<span style="color:var(--green)">不足分は${escH(r.applied)}払いに上乗せ済み</span>` : r.diff>0 ? `<span style="color:var(--gold)">不足 ${y2(r.diff)} → 次の支払いに上乗せ</span>` : r.diff<0 ? `払いすぎ ${y2(-r.diff)}（保留）` : '今の計算と一致';
+        const cell = v => `<td class="mn" style="color:${r.kind==='client'?'var(--blue)':'#a5c4ff'};font-weight:600">${y2(v)}<div style="font-size:10.5px;color:var(--muted);font-weight:400">今の計算 ${y2(r.recalc)}</div></td>`;
+        return `<tr>
+        <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${ymLbl}</td>
+        <td style="font-weight:500;white-space:nowrap">${escH(r.user)}</td>
+        <td style="font-size:12px;white-space:nowrap">${r.kind==='client'?'本人報酬':'紹介者報酬'}<div style="font-size:10px;color:var(--muted)">支払済み登録</div></td>
+        <td style="font-size:11.5px;color:var(--muted)">${escH(r.period)}</td>
+        <td class="mn" style="font-size:12px">${r.kind==='client'?'¥'+fmt(r.profit):'—'}</td>
+        ${r.kind==='client'?cell(r.user_reward):'<td class="mn" style="color:var(--muted)">—</td>'}
+        ${r.kind==='ref'?cell(r.ref1_reward):'<td class="mn" style="color:var(--muted);font-size:12px">—</td>'}
+        <td class="mn" style="color:var(--muted);font-size:12px">—</td>
+        <td style="font-size:11.5px;color:var(--muted)">${det}<br>${st}</td>
+        <td><button onclick="paidDel('${r.kind}',${J(r.user)},${J(r.pk)});renderHistoryTab()" title="支払済み額の登録を消す" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px">✕</button></td>
+      </tr>`;
+      }
       const tc = r.type==='own'?'var(--blue)':'var(--gold)';
       const typeLbl = r.type==='own'?'自己資金':'資金提供';
       return `<tr>
