@@ -1283,14 +1283,19 @@ function getRefs(name, depth=0){
   if (depth===0 && REFS_CACHE[name]) return REFS_CACHE[name];
   const m=CLIENT_REFS[name]||{};
   let refs1=[], src, check=false, note='';
-  if (Array.isArray(m.refs1)){ refs1=normShares(m.refs1.map(x=>({name:canonName(x.name), share:x.share}))); src='manual'; }
+  let refPct=null;
+  if (Array.isArray(m.refs1)){
+    const usePct = m.refs1.length>1 && m.refs1.every(x=>x.pct!==undefined && x.pct!==null);
+    refs1=normShares(m.refs1.map(x=>({name:canonName(x.name), share: usePct ? x.pct : x.share})));
+    if (usePct){ const pm={}; m.refs1.forEach(x=>{ const k=canonName(x.name); if(k) pm[k]=(pm[k]||0)+(+x.pct||0); }); refs1=refs1.map(r=>({...r, pct:r6(pm[r.name]||0)})); refPct=r6(refs1.reduce((a,r)=>a+r.pct,0)); }
+    src='manual'; }
   else if (m.ref1!==undefined && m.ref1!==null){ refs1 = m.ref1 ? normShares(String(m.ref1).split(/[・、,，\/]/).map(x=>({name:canonName(x), share:1}))) : []; src='manual'; }
   else { const p=parseRefRaw(SHEET_REFS[name]); refs1=p.refs1; src=SHEET_REFS[name]!==undefined?'sheet':'none'; check=p.check; note=p.note||''; }
   refs1 = refs1.map(r=>({ ...r, up: (depth<3 && isClientName(r.name) && r.name!==name) ? getRefs(r.name, depth+1).refs1.map(x=>({name:x.name, share:x.share})) : [] }));
   let ref2, ref2src='auto';
   if (m.ref2!==undefined && m.ref2!==null){ ref2=canonName(m.ref2); ref2src='manual'; }
   else ref2 = [...new Set(refs1.flatMap(r=>r.up.map(x=>x.name)))].join('・');
-  const out = {ref1:refs1.map(r=>r.name).join('・'), ref2, refs1, src, ref2src, check, note, raw:SHEET_REFS[name]||''};
+  const out = {ref1:refs1.map(r=>r.name).join('・'), ref2, refs1, refPct, src, ref2src, check, note, raw:SHEET_REFS[name]||''};
   if (depth===0) REFS_CACHE[name]=out;
   return out;
 }
@@ -1308,7 +1313,7 @@ function refPayouts(name, refDirect, refIndirect){
 }
 function refsLabel(refs1){
   if(!refs1||!refs1.length) return '';
-  return refs1.length===1 ? refs1[0].name : refs1.map(r=>`${r.name} ${+(r.share*100).toFixed(1)}%`).join('・');
+  return refs1.length===1 ? refs1[0].name : refs1.map(r=>r.pct!==undefined ? `${r.name} 利益${+(r.pct*100).toFixed(2)}%` : `${r.name} ${+(r.share*100).toFixed(1)}%`).join('・');
 }
 // 個人の提供者がいる人だけ「資金提供プラン2」
 function usesPlan2(user){ return userFunders(user).some(l=>funderOf(l.funder).type==='individual'); }
@@ -1487,8 +1492,11 @@ function blendRates(ownPct){
   return out;
 }
 // 間接紹介者がいない場合は、間接紹介の取り分を直紹介者に上乗せする
-function mergeRefRates(r, ref1, ref2){
-  if (ref1 && !ref2 && (r.ref2||0)>0) return { ...r, ref1:r6((r.ref1||0)+(r.ref2||0)), ref2:0, _refMerged:true };
+function mergeRefRates(r, ref1, ref2, name){
+  if (ref1 && !ref2 && (r.ref2||0)>0) r = { ...r, ref1:r6((r.ref1||0)+(r.ref2||0)), ref2:0, _refMerged:true };
+  // 直紹介者が複数で「利益の○%」を入力した人：プランの直紹介との差（超えた分）を運営の取り分から引く
+  if (name){ const f=getRefs(name);
+    if (f.refPct!==null && f.refPct!==undefined && ref1===f.ref1){ const d=r6(f.refPct-(r.ref1||0)); if(Math.abs(d)>1e-9) r = { ...r, ref1:f.refPct, ops:r6((r.ops||0)-d), _refPool:r.ref1||0, _refAdj:d }; } }
   return r;
 }
 // 名前から適用率を取得（紹介者ルール込み）
@@ -1496,7 +1504,7 @@ function getRates(name, ownPctOverride, ym){
   const r = getRatesRaw(name, ownPctOverride, ym);
   if (!name) return r;
   const f = getRefs(name);
-  return mergeRefRates(r, f.ref1, f.ref2);
+  return mergeRefRates(r, f.ref1, f.ref2, name);
 }
 // 紹介者ルールを入れる前の率（ownPctOverride を渡すとその比率で計算。個別率は常に優先）
 function getRatesRaw(name, ownPctOverride, ym){
@@ -1702,7 +1710,7 @@ function ceOpen(name){
   const u=USER_RATES[name]||{};
   const rf = getRefs(name);
   CE = { name, plan: u.custom ? 'custom' : (u.plan||''), custom: u.custom ? {...u.custom} : null, funders: userFunders(name).map(l=>({...l})),
-         refs1: rf.refs1.map(r=>({name:r.name, share:+(r.share*100).toFixed(2)})), refsManual: rf.src==='manual' };
+         refs1: ceRefRows(name, rf), refsManual: rf.src==='manual' };
   document.getElementById('ce-title').textContent = `✏️ ${name}`;
   ceRender(); ceShareSum();
   const m=document.getElementById('ce-modal'); m.style.display='flex';
@@ -1713,6 +1721,7 @@ function ceRender(){
   const n=CE.name, u=USER_RATES[n]||{}, c=(S.clients||{})[n]||{}, m=CLIENT_REFS[n]||{};
   const auto = (()=>{ const save=CLIENT_REFS[n]; delete CLIENT_REFS[n]; const r=getRefs(n); if(save) CLIENT_REFS[n]=save; return r; })();
   const cur=getRefs(n), rt=getRates(n), src=ownPctSource(n);
+  CE.pool = cePool(n); CE.ops = getRatesRaw(n).ops||0;
   const v = x => x===undefined||x===null ? '' : (x===''?'なし':x);
   const sec = t => `<div style="font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--muted);margin:18px 0 8px;text-transform:uppercase">${t}</div>`;
   const names = allKnownNames().map(x=>`<option value="${escH(x)}">`).join('');
@@ -1728,16 +1737,16 @@ function ceRender(){
     <label class="lbl">直紹介者${CE.refsManual?' <span style="color:var(--blue);font-size:10px">手入力</span>':' <span style="color:var(--muted);font-size:10px">シートから自動</span>'}</label>
     <div id="ce-refs1">${CE.refs1.map((r,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
       <input class="inp" list="ce-names" value="${escH(r.name)}" oninput="CE.refs1[${i}].name=this.value;CE.refsManual=true" placeholder="名前" style="flex:1;padding:6px 10px"/>
-      <input class="inp" type="number" min="0" step="0.1" value="${r.share}" oninput="CE.refs1[${i}].share=this.value;CE.refsManual=true;ceShareSum()" style="width:90px;padding:6px 8px;font-family:var(--mono)"/><span style="font-size:11px;color:var(--muted)">%</span>
+      <span style="font-size:11px;color:var(--muted)">利益の</span><input class="inp" type="number" min="0" step="0.1" value="${CE.refs1.length>1?r.p:+(CE.pool*100).toFixed(2)}" ${CE.refs1.length>1?'':'disabled title="直紹介者が1人のときは直紹介の全額"'} oninput="CE.refs1[${i}].p=this.value;CE.refsManual=true;ceShareSum()" style="width:80px;padding:6px 8px;font-family:var(--mono)"/><span style="font-size:11px;color:var(--muted)">%</span>
       <button onclick="CE.refs1.splice(${i},1);CE.refsManual=true;ceRender()" style="background:transparent;border:none;color:var(--muted);cursor:pointer">✕</button></div>`).join('') || '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">なし</div>'}</div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button class="btn btn-secondary btn-sm" onclick="CE.refs1.push({name:'',share:0});CE.refsManual=true;ceEqualShares();ceRender()">＋ 直紹介者を追加</button>
+      <button class="btn btn-secondary btn-sm" onclick="CE.refs1.push({name:'',p:0});CE.refsManual=true;ceEqualShares();ceRender()">＋ 直紹介者を追加</button>
       ${CE.refs1.length>1?`<button class="btn btn-secondary btn-sm" onclick="ceEqualShares();CE.refsManual=true;ceRender()">均等に分ける</button>`:''}
       ${CE.refsManual?`<button class="btn btn-secondary btn-sm" onclick="ceRefsAuto()">↺ シートの紹介者に戻す</button>`:''}
       <span id="ce-share-sum" style="font-size:11.5px;color:var(--muted)"></span>
     </div>
     <div style="margin-top:10px"><label class="lbl">間接紹介者</label><input class="inp" id="ce-ref2" list="ce-names" value="${escH(v(m.ref2))}" placeholder="${escH(cur.refs1.map(r=>r.up.map(x=>x.name).join('・')||`（${r.name}の紹介者なし）`).join(' ／ ')||'なし')}（自動）"/></div>
-    <p class="help">直紹介者が複数いる場合、直紹介の報酬を「%」の割合で分けます。間接紹介は、各直紹介者の紹介者に同じ割合で分けます（紹介者がいない直紹介者の分はその人に上乗せ）。<br>間接紹介者：空欄＝自動。1人に固定したい場合だけ入力、いない場合は「なし」。
+    <p class="help">直紹介の報酬は「利益の○%」で入力します（今月の率で表示。このクライアントの直紹介は利益の${+(CE.pool*100).toFixed(2)}%）。直紹介者が複数いる場合は人ごとに「利益の○%」を入力します。合計がこの率を超えた分は運営の取り分から引き、少ない分は運営の取り分になります。間接紹介は、各直紹介者の紹介者に同じ割合で分けます（紹介者がいない直紹介者の分はその人に上乗せ）。<br>間接紹介者：空欄＝自動。1人に固定したい場合だけ入力、いない場合は「なし」。
       ${auto.raw?`<br>シートの紹介者欄：「${escH(auto.raw)}」${auto.check?` <span style="color:var(--gold)">⚠ 要確認：${escH(auto.note)}</span>`:''}`:'<br>シートの紹介者欄：空欄'}</p>
     ${sec('プラン')}
     <select class="inp" id="ce-plan" onchange="CE.plan=this.value; if(CE.plan==='custom'&&!CE.custom){CE.custom=Object.fromEntries(RATE_KEYS.map(k=>[k,getRatesRaw(CE.name)[k]||0]));} ceRender()" style="font-family:var(--sans)">
@@ -1770,13 +1779,19 @@ function ceRender(){
 }
 function ceShareSum(){
   const el=document.getElementById('ce-share-sum'); if(!el||!CE) return;
-  const t=CE.refs1.filter(r=>String(r.name).trim()).reduce((a,r)=>a+(parseFloat(r.share)||0),0);
-  el.textContent = CE.refs1.length>1 ? `合計 ${+t.toFixed(2)}%${Math.abs(t-100)>0.01?'（保存時に100%になるよう調整します）':''}` : '';
+  const tp=+CE.refs1.filter(r=>String(r.name).trim()).reduce((a,r)=>a+(parseFloat(r.p)||0),0).toFixed(2), pool=+((CE.pool||0)*100).toFixed(2);
+  const d=+(tp-pool).toFixed(2), opsAfter=+((CE.ops||0)*100-d).toFixed(2);
+  el.textContent = CE.refs1.length>1 ? `合計 利益の${tp}%（プランの直紹介 ${pool}%）` + (d>0.001 ? `　超えた ${d}% は運営から引きます（運営 ${+((CE.ops||0)*100).toFixed(2)}% → ${opsAfter}%）` : d<-0.001 ? `　残り ${-d}% は運営の取り分になります（運営 → ${opsAfter}%）` : '') + (opsAfter<0?' ⚠ 運営がマイナスになります':'') : '';
+  el.style.color = CE.refs1.length>1 && Math.abs(d)>0.001 ? 'var(--gold)' : 'var(--muted)';
 }
-function ceEqualShares(){ const l=CE.refs1.length; CE.refs1.forEach(r=>r.share=+(100/l).toFixed(2)); }
+function ceEqualShares(){ const l=CE.refs1.length, pool=cePool(CE.name); CE.refs1.forEach(r=>r.p=+(pool*100/l).toFixed(2)); }
+// プランの直紹介率（紹介者ルール込み・利益%の上書き前）
+function cePool(n){ const f=getRefs(n); return mergeRefRates(getRatesRaw(n), f.ref1, f.ref2).ref1||0; }
+// 編集画面の行：p = 利益の%
+function ceRefRows(n, rf){ const pool=cePool(n); return rf.refs1.map(r=>({name:r.name, p: r.pct!==undefined ? +(r.pct*100).toFixed(2) : +(r.share*pool*100).toFixed(2)})); }
 function ceRefsAuto(){
   const save=CLIENT_REFS[CE.name]; if(save){ delete save.refs1; delete save.ref1; } REFS_CACHE={};
-  const rf=getRefs(CE.name); CE.refs1=rf.refs1.map(r=>({name:r.name, share:+(r.share*100).toFixed(2)})); CE.refsManual=false;
+  const rf=getRefs(CE.name); CE.refs1=ceRefRows(CE.name, rf); CE.refsManual=false;
   if(save && !Object.keys(save).length) delete CLIENT_REFS[CE.name];
   ceRender();
 }
@@ -1785,7 +1800,8 @@ function ceSave(){
   const n=CE.name;
   const norm = v => { v=String(v||'').trim(); return v==='' ? undefined : (v==='なし' ? '' : v); };
   const r2=norm(document.getElementById('ce-ref2').value);
-  const refs = CE.refsManual ? CE.refs1.filter(r=>String(r.name).trim()).map(r=>({name:String(r.name).trim(), share:parseFloat(r.share)||0})) : null;
+  const rl = CE.refs1.filter(r=>String(r.name).trim());
+  const refs = CE.refsManual ? (rl.length>1 ? rl.map(r=>({name:String(r.name).trim(), pct:r6((parseFloat(r.p)||0)/100)})) : rl.map(r=>({name:String(r.name).trim(), share:1}))) : null;
   const entry = {};
   if (refs) entry.refs1 = refs;
   if (r2!==undefined) entry.ref2 = r2;
@@ -2267,7 +2283,7 @@ function stmtBuild(){
   }
   if(mode!=='manual' && !member) return {error:`売上シートに「${name}」のデータがありません（「手入力」モードなら利益を直接入力できます）`};
   const fRef1=(document.getElementById('stmt-ref1')?.value||'').trim(), fRef2=(document.getElementById('stmt-ref2')?.value||'').trim();
-  months=months.map(x=>{ const rm=mergeRefRates(getRatesRaw(name, ovr, ymKey(x.year,x.month)), fRef1, fRef2); return {...x, ...calcVex(x.profit, rm), rm}; });
+  months=months.map(x=>{ const rm=mergeRefRates(getRatesRaw(name, ovr, ymKey(x.year,x.month)), fRef1, fRef2, name); return {...x, ...calcVex(x.profit, rm), rm}; });
   const rates = months[0].rm;
   const varies = months.some(m=>RATE_KEYS.some(k=>Math.abs(m.rm[k]-rates[k])>1e-9) || m.rm.ownPct!==rates.ownPct);
   const tot=k=>months.reduce((s,x)=>s+(x[k]||0),0);
@@ -3439,7 +3455,7 @@ function vexCalc() {
     return;
   }
 
-  const rts = mergeRefRates(getRatesRaw(vName, ownPct), ref1name, ref2name);
+  const rts = mergeRefRates(getRatesRaw(vName, ownPct), ref1name, ref2name, vName);
   const r = calcVex(profit, rts);
   const ac = rateColor(rts);
   const typeBadge = rateBadge(rts, false);
@@ -3589,7 +3605,7 @@ function renderVexBatch() {
 
   tbody.innerHTML = vexRows.map(row => {
     if (!row.pctEdited) row.ownPct = row.name ? getOwnPct(row.name, batchMonth||undefined) : (row.ownPct ?? 100);
-    const rts = mergeRefRates(getRatesRaw(row.name, row.ownPct, batchMonth||undefined), row.ref1, row.ref2);
+    const rts = mergeRefRates(getRatesRaw(row.name, row.ownPct, batchMonth||undefined), row.ref1, row.ref2, row.name);
     const r = row.profit > 0 ? calcVex(row.profit, rts) : null;
     if (r) { totUser+=r.user; totRef1+=r.refDirect; totRef2+=r.refIndirect; totOps+=r.ops; totRisk+=r.risk; totFunder+=r.funder||0; }
     const tc = rateColor(rts);
@@ -3823,7 +3839,7 @@ async function vexBulkRegisterToPayment(){
   var ok=0,fail=0;
   for(var i=0;i<rows.length;i++){
     var row=rows[i];
-    var rts=mergeRefRates(getRatesRaw(row.name,row.ownPct,document.getElementById("vex-batch-month")?.value||undefined),row.ref1,row.ref2);
+    var rts=mergeRefRates(getRatesRaw(row.name,row.ownPct,document.getElementById("vex-batch-month")?.value||undefined),row.ref1,row.ref2,row.name);
     var r=calcVex(row.profit,rts);
     var cl=S.clients[row.name]||{};
     var transfer=r.user+2000;
@@ -4160,7 +4176,7 @@ function histCalcPreview() {
   const htype = document.getElementById('hist-type')?.value||'auto';
   const huser = document.getElementById('hist-user')?.value.trim();
   const hr1 = document.getElementById('hist-ref1')?.value.trim(), hr2 = document.getElementById('hist-ref2')?.value.trim();
-  const rts = mergeRefRates(htype==='auto' ? getRatesRaw(huser, undefined, document.getElementById('hist-ym')?.value||undefined) : getRatesRaw('', htype==='own'?100:0), hr1, hr2);
+  const rts = mergeRefRates(htype==='auto' ? getRatesRaw(huser, undefined, document.getElementById('hist-ym')?.value||undefined) : getRatesRaw('', htype==='own'?100:0), hr1, hr2, htype==='auto'?huser:'');
   const type = rts.ownPct>=50?'own':'fund';
   const preview = document.getElementById('hist-preview');
   const rows = document.getElementById('hist-preview-rows');
@@ -4191,7 +4207,7 @@ async function histSave() {
 
   if(!ym||!user){ histMsg('清算年月と利用者名は必須です','error'); return; }
 
-  const rts = mergeRefRates(htype==='auto' ? getRatesRaw(user, undefined, ym) : getRatesRaw('', htype==='own'?100:0), ref1, ref2);
+  const rts = mergeRefRates(htype==='auto' ? getRatesRaw(user, undefined, ym) : getRatesRaw('', htype==='own'?100:0), ref1, ref2, htype==='auto'?user:'');
   const type = rts.ownPct>=50?'own':'fund';
   const r = calcVex(profit, rts);
   const entry = {
