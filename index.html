@@ -385,7 +385,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
 
         <div class="tbl-card" style="margin-top:20px">
           <div class="tbl-hdr">
-            <div class="tbl-ttl">🧾 支払済み額と差額（過去の期間）</div>
+            <div class="tbl-ttl">🧾 支払済み額（過去の期間）</div>
             <div class="tbl-sub" id="pd-sum"></div>
           </div>
           <div style="padding:0 20px 10px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
@@ -401,10 +401,10 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <button class="btn btn-primary btn-sm" onclick="paidAdd()">＋ 追加</button>
           </div>
           <div id="pd-preview" style="padding:0 20px 8px;font-size:12px;color:var(--dim);min-height:18px"></div>
-          <p style="font-size:12px;color:var(--muted);padding:0 20px 8px">今の計算で出し直した額と、実際に支払った報酬（振り込んだ金額＋差し引いた経費・その他）の差を出します。<strong style="color:var(--gold)">不足分</strong>も<strong>払いすぎ</strong>も保留にして、次の支払いには足し引きしません。不足分を次の支払いに上乗せしたい人だけ、一覧の「＋上乗せする」を押してください。一人ずつ、名前・期間・振り込んだ金額（経費などを引いていればその額も）を入れて「＋ 追加」（Enterでも追加）。同じ人・同じ期間をもう一度入れると上書きします。期間と金額は一覧でも直せます。</p>
+          <p style="font-size:12px;color:var(--muted);padding:0 20px 8px">過去に支払った報酬（振り込んだ金額＋差し引いた経費・その他）の記録です。不足・払いすぎの計算はしません。一人ずつ、名前・期間・振り込んだ金額（経費などを引いていればその額も）を入れて「＋ 追加」（Enterでも追加）。同じ人・同じ期間をもう一度入れると上書きします。</p>
           <div style="overflow-x:auto"><table style="min-width:1150px">
-            <thead><tr><th>名前</th><th>支払った期間</th><th style="text-align:right">期間の利益</th><th style="text-align:right">今の計算</th><th style="text-align:right">振込額</th><th style="text-align:right">経費</th><th style="text-align:right">その他</th><th style="text-align:right">支払った報酬</th><th style="text-align:right">差額</th><th>状態</th><th></th></tr></thead>
-            <tbody id="pd-tbody"><tr class="empty"><td colspan="11">まだ登録がありません</td></tr></tbody>
+            <thead><tr><th>名前</th><th>支払った期間</th><th style="text-align:right">期間の利益</th><th style="text-align:right">今の計算</th><th style="text-align:right">振込額</th><th style="text-align:right">経費</th><th style="text-align:right">その他</th><th style="text-align:right">支払った報酬</th><th></th></tr></thead>
+            <tbody id="pd-tbody"><tr class="empty"><td colspan="9">まだ登録がありません</td></tr></tbody>
           </table></div>
         </div>
       </div>
@@ -2442,6 +2442,7 @@ function personLockedTotal(name, months){ if(!months.every(({year,month})=>isLoc
 // 🧾 支払済み額（過去の期間）と差額：不足分・払いすぎは保留（「上乗せする」を押した不足分だけ次の支払いに上乗せ）
 //   PAID = { client|ref : { 名前 : { 'YYYY-MM~YYYY-MM' : {paid, applied?:'YYYY-MM-DD'} } } }
 // ================================================================
+const PAID_ADD_SHORT=false;   // 不足分の上乗せはしない（過去分は確定済み）
 const PAID_KEY='vex_paid_hist', PAID_FROM_DEFAULT='2025-09';
 let PAID = lsGet(PAID_KEY, null) || {client:{}, ref:{}};
 PAID.client=PAID.client||{}; PAID.ref=PAID.ref||{};
@@ -2468,7 +2469,7 @@ function paidRows(kind){
 function shortfallFor(kind, name, months, cache){
   const start=firstYM(months), pay=months&&months.length?payDateOf(months):'';
   const ps=(PAID[kind]||{})[name]; if(!ps||!start) return {amount:0, items:[]};
-  const items=Object.entries(ps).filter(([pk,e])=>pk.split('~')[1]<start && e.add && (!e.applied || e.applied===pay))
+  const items=Object.entries(ps).filter(([pk,e])=>pk.split('~')[1]<start && PAID_ADD_SHORT && e.add && (!e.applied || e.applied===pay))
     .map(([pk,e])=>({pk, label:periodLabelOf(pkMonths(pk)), diff:paidRecalc(kind, name, pk, cache)-paidTotal(e)})).filter(x=>x.diff>0);
   return {amount:items.reduce((a,x)=>a+x.diff,0), items, label: items.length ? `前回までの不足分（${items.map(x=>x.label).join('・')}）` : ''};
 }
@@ -2491,7 +2492,7 @@ function paidPreview(){
   const pv=document.getElementById('pd-profit').value.trim();
   const rc=(kind==='client' && pv!=='') ? paidRecalcWithProfit(nm, pk, yen(pv)) : paidRecalc(kind, nm, pk), amt=yen(document.getElementById('pd-amt').value)+ex+ot, d=rc-amt, has=document.getElementById('pd-amt').value.trim()!=='';
   const mm=(S.members||[]).find(x=>x.name===nm), shTot = mm ? pkMonths(pk).reduce((a,{year,month})=>a+sheetProfit(mm,year,month),0) : 0;
-  el.innerHTML=`${escH(nm)}・${escH(periodLabelOf(pkMonths(pk)))}：${kind==='client'?`利益 ${pv!==''?`<strong class="mn">¥${fmt(yen(pv))}</strong>（シート ¥${fmt(shTot)}）`:`¥${fmt(shTot)}（シート）`}　`:''}今の計算 <strong class="mn">¥${fmt(rc)}</strong>`+(has?`　支払った報酬 <strong class="mn">¥${fmt(amt)}</strong>${ex||ot?`（振込＋経費${ex?' ¥'+fmt(ex):''}${ot?'＋その他 ¥'+fmt(ot):''}）`:''}　差額 <strong class="mn" style="color:${d>0?'var(--gold)':'var(--muted)'}">${d>0?'+':''}${d<0?'-':''}¥${fmt(Math.abs(d))}</strong>${d>0?'（不足 → 保留）':d<0?'（払いすぎ → 保留）':''}`:'')+(((PAID[kind]||{})[nm]||{})[pk]?'　<span style="color:var(--muted)">※登録済み（上書きします）</span>':'');
+  el.innerHTML=`${escH(nm)}・${escH(periodLabelOf(pkMonths(pk)))}：${kind==='client'?`利益 ${pv!==''?`<strong class="mn">¥${fmt(yen(pv))}</strong>（シート ¥${fmt(shTot)}）`:`¥${fmt(shTot)}（シート）`}　`:''}今の計算 <strong class="mn">¥${fmt(rc)}</strong>`+(has?`　支払った報酬 <strong class="mn">¥${fmt(amt)}</strong>${ex||ot?`（振込＋経費${ex?' ¥'+fmt(ex):''}${ot?'＋その他 ¥'+fmt(ot):''}）`:''}`:'')+(((PAID[kind]||{})[nm]||{})[pk]?'　<span style="color:var(--muted)">※登録済み（上書きします）</span>':'');
 }
 // 期間の利益を指定したときの本人報酬（月別の比で配分して、その月の率で計算）
 function paidRecalcWithProfit(name, pk, total){
@@ -2538,8 +2539,8 @@ function renderPaid(){
   const rows=paidRows(kind).sort((a,b)=>a.name.localeCompare(b.name,'ja')||b.pk.localeCompare(a.pk));
   const yen2=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
   const short=rows.filter(r=>r.diff>0&&!r.applied).reduce((a,r)=>a+r.diff,0), shortAdd=rows.filter(r=>r.diff>0&&!r.applied&&r.add).reduce((a,r)=>a+r.diff,0), over=rows.filter(r=>r.diff<0).reduce((a,r)=>a-r.diff,0);
-  document.getElementById('pd-sum').innerHTML = rows.length ? `${rows.length}件　<span style="color:var(--gold)">不足 ${yen2(short)}${shortAdd?`（うち上乗せ ${yen2(shortAdd)}）`:'（保留）'}</span>　払いすぎ（保留） ${yen2(over)}` : '';
-  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="11">まだ登録がありません。上で名前・期間・金額を入れて「＋ 追加」してください</td></tr>'; return; }
+  document.getElementById('pd-sum').innerHTML = rows.length ? `${rows.length}件　支払った報酬 合計 ${yen2(rows.reduce((a,r)=>a+r.tot,0))}` : '';
+  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="9">まだ登録がありません。上で名前・期間・金額を入れて「＋ 追加」してください</td></tr>'; return; }
   const J=x=>JSON.stringify(x).replace(/"/g,'&quot;');
   tb.innerHTML = rows.map(r=>{
     const st = r.applied ? `<span style="color:var(--green)">上乗せ済み（${escH(r.applied)}払い）</span> <button onclick="paidUnapply('${kind}',${J(r.name)},${J(r.pk)})" title="上乗せ済みを取り消す" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:11px">↺</button>`
@@ -2556,8 +2557,6 @@ function renderPaid(){
       <td style="text-align:right"><input class="inp" value="${r.oth||''}" placeholder="0" onchange="paidEdit('${kind}',${J(r.name)},${J(r.pk)},this.value,'oth')" style="width:85px;padding:4px 8px;font-size:12px;font-family:var(--mono);text-align:right"/>
         <input class="inp" value="${escH(r.memo)}" placeholder="内容" onchange="paidEdit('${kind}',${J(r.name)},${J(r.pk)},this.value,'memo')" style="width:85px;padding:3px 6px;font-size:11px;margin-top:3px"/></td>
       <td class="mn" style="text-align:right">${yen2(r.tot)}</td>
-      <td class="mn" style="text-align:right;color:${r.diff>0?'var(--gold)':r.diff<0?'var(--muted)':'var(--dim)'};font-weight:600">${r.diff>0?'+':''}${yen2(r.diff)}</td>
-      <td style="font-size:12px;white-space:nowrap">${st}</td>
       <td><button onclick="paidDel('${kind}',${J(r.name)},${J(r.pk)})" style="background:transparent;border:none;color:var(--muted);cursor:pointer">✕</button></td></tr>`; }).join('');
 }
 // 明細を期間付きで開く
@@ -4659,7 +4658,7 @@ function renderHistoryTab() {
       if (r._paid){
         const J=x=>JSON.stringify(x).replace(/"/g,'&quot;'), y2=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
         const det=[`振込 ¥${fmt(r.paid)}`, r.exp?`経費 ¥${fmt(r.exp)}`:'', r.oth?`その他 ¥${fmt(r.oth)}${r.memo?'（'+escH(r.memo)+'）':''}`:''].filter(Boolean).join('・');
-        const st = r.applied ? `<span style="color:var(--green)">不足分は${escH(r.applied)}払いに上乗せ済み</span>` : r.diff>0 ? `<span style="color:var(--gold)">不足 ${y2(r.diff)}${r.add?' → 次の支払いに上乗せ':'（保留）'}</span>` : r.diff<0 ? `払いすぎ ${y2(-r.diff)}（保留）` : '今の計算と一致';
+        const st = '';
         const cell = v => `<td class="mn" style="color:${r.kind==='client'?'var(--blue)':'#a5c4ff'};font-weight:600">${y2(v)}<div style="font-size:10.5px;color:var(--muted);font-weight:400">今の計算 ${y2(r.recalc)}</div></td>`;
         return `<tr>
         <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${ymLbl}</td>
@@ -4670,7 +4669,7 @@ function renderHistoryTab() {
         ${r.kind==='client'?cell(r.user_reward):'<td class="mn" style="color:var(--muted)">—</td>'}
         ${r.kind==='ref'?cell(r.ref1_reward):'<td class="mn" style="color:var(--muted);font-size:12px">—</td>'}
         <td class="mn" style="color:var(--muted);font-size:12px">—</td>
-        <td style="font-size:11.5px;color:var(--muted)">${det}<br>${st}</td>
+        <td style="font-size:11.5px;color:var(--muted)">${det}</td>
         <td><button onclick="paidDel('${r.kind}',${J(r.user)},${J(r.pk)});renderHistoryTab()" title="支払済み額の登録を消す" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px">✕</button></td>
       </tr>`;
       }
