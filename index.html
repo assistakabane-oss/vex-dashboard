@@ -390,7 +390,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <div><label class="lbl">対象</label><select class="inp" id="pd-kind" onchange="paidPreview();renderPaid()" style="width:180px;font-family:var(--sans)"><option value="client">クライアント本人報酬</option><option value="ref">紹介者報酬</option></select></div>
             <div style="flex:1;min-width:160px"><label class="lbl">名前</label><input class="inp" id="pd-name" list="pd-names" placeholder="名前" oninput="paidPreview()" onkeydown="if(event.key==='Enter')paidAdd()"/><datalist id="pd-names"></datalist></div>
             <div><label class="lbl">支払った期間</label><div style="display:flex;gap:6px;align-items:center">
-              <input class="inp" id="pd-from" type="month" oninput="paidPreview()" style="width:145px;font-family:var(--mono)"/><span style="color:var(--muted)">〜</span><input class="inp" id="pd-to" type="month" oninput="paidPreview()" style="width:145px;font-family:var(--mono)"/></div></div>
+              <input class="inp" id="pd-from" type="month" min="2025-09" oninput="paidPreview()" style="width:145px;font-family:var(--mono)"/><span style="color:var(--muted)">〜</span><input class="inp" id="pd-to" type="month" min="2025-09" oninput="paidPreview()" style="width:145px;font-family:var(--mono)"/></div></div>
             <div><label class="lbl">振り込んだ金額</label><input class="inp" id="pd-amt" type="text" inputmode="numeric" placeholder="0" oninput="paidPreview()" onkeydown="if(event.key==='Enter')paidAdd()" style="width:130px;font-family:var(--mono);text-align:right"/></div>
             <div><label class="lbl">経費（引いた額）</label><input class="inp" id="pd-exp" type="text" inputmode="numeric" placeholder="0" oninput="paidPreview()" onkeydown="if(event.key==='Enter')paidAdd()" style="width:110px;font-family:var(--mono);text-align:right"/></div>
             <div><label class="lbl">その他（引いた額）</label><input class="inp" id="pd-oth" type="text" inputmode="numeric" placeholder="0" oninput="paidPreview()" onkeydown="if(event.key==='Enter')paidAdd()" style="width:110px;font-family:var(--mono);text-align:right"/></div>
@@ -2328,7 +2328,7 @@ function renderSettlePay(){
 // 🧾 支払済み額（過去の期間）と差額：不足分は次の支払いに上乗せ、払いすぎは保留
 //   PAID = { client|ref : { 名前 : { 'YYYY-MM~YYYY-MM' : {paid, applied?:'YYYY-MM-DD'} } } }
 // ================================================================
-const PAID_KEY='vex_paid_hist';
+const PAID_KEY='vex_paid_hist', PAID_FROM_DEFAULT='2025-09';
 let PAID = lsGet(PAID_KEY, null) || {client:{}, ref:{}};
 PAID.client=PAID.client||{}; PAID.ref=PAID.ref||{};
 function paidSave(){ lsSet(PAID_KEY, PAID); }
@@ -2401,7 +2401,8 @@ function paidUnapply(kind, name, pk){ const e=((PAID[kind]||{})[name]||{})[pk]; 
 function renderPaid(){
   const tb=document.getElementById('pd-tbody'); if(!tb) return;
   const f=document.getElementById('pd-from'), t=document.getElementById('pd-to');
-  if(f && !f.value){ const q=getQuarterMonths(Math.ceil(+latestSalesYM().split('-')[1]/3)*3, +latestSalesYM().split('-')[0]); const pm=q[0].month-3, py=pm<1?q[0].year-1:q[0].year, m0=pm<1?pm+12:pm; f.value=ymKey(py,m0); t.value=ymKey(py,m0+2); }
+  // 支払った期間の初期値：開始＝2025年9月、終了＝最新の売上月を含む四半期の前の四半期末
+  if(f && !f.value){ const q=getQuarterMonths(Math.ceil(+latestSalesYM().split('-')[1]/3)*3, +latestSalesYM().split('-')[0]); const pm=q[0].month-1, py=pm<1?q[0].year-1:q[0].year; f.value=PAID_FROM_DEFAULT; t.value=ymKey(py, pm<1?12:pm); if(t.value<f.value) t.value=f.value; }
   const kind=document.getElementById('pd-kind')?.value||'client';
   const rows=paidRows(kind).sort((a,b)=>a.name.localeCompare(b.name,'ja')||b.pk.localeCompare(a.pk));
   const yen2=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
