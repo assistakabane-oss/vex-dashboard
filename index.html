@@ -1156,7 +1156,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <strong>自己資金比率</strong>：貸付（資金提供）と自己資金が混ざる人は割合を入力 → 2プランを加重平均します（例：60% → ユーザー率 30%×0.6 + 15%×0.4 = 24%）。<br>
           <strong>月ごとの入金（自動）</strong>：クライアントシートの<strong>個人タブ</strong>から月ごとに自動で読み込みます。<br>
           　貸付＝<strong>銀行入金</strong>／返金＝<strong>銀行出金</strong>／自己資金＝<strong>証券会社への入金合計 − 銀行入金</strong>（K3〜M3の自己資金額が上限、「なし」の人は0）。<br>
-          　返金は、計算期間（1〜3月・4〜6月・7〜9月・10〜12月）内の貸付と相殺します。翌月10日までの返金は前月分として扱います。余った分は次の期間以降の貸付と相殺します（自己資金からは引きません）。入出金のない月は前の月の比率を引き継ぎます。<br>
+          　<strong>自己資金があって貸付も発生している人</strong>は、清算・支払いで選んでいる期間の月を期間末の残高（自己資金の合計 ÷（自己資金＋貸付−返金））の割合で計算します（初清算の人は開始月から同じ割合。返金が貸付より多い分は繰り越して以後の貸付と相殺）。それ以外は月ごとに計算します。<br>　返金は、計算期間（1〜3月・4〜6月・7〜9月・10〜12月）内の貸付と相殺します。翌月10日までの返金は前月分として扱います。余った分は次の期間以降の貸付と相殺します（自己資金からは引きません）。入出金のない月は前の月の比率を引き継ぎます。<br>
           　シートと違う値にしたい月だけ、金額や%を手入力すると上書きできます（左上で月を選ぶか「📅 月別」から）。<br>
           <strong>個別率</strong>：特定の人だけ率が違う場合にチェックし、5項目を直接入力します（比率より優先）。
         </p>
@@ -1532,9 +1532,31 @@ function monthOwnPct(u, ch, k){
   return null;
 }
 // 月ごとの自己資金比率：その月の値 → 前の月から引き継ぎ → 共通の比率 → 運用状況シートのグループ欄
+// その人の今の清算期間（💳 清算・支払いで選んでいる期間）
+function settlePeriodOf(name){
+  try{ if(typeof csRowSpec!=='function' || !document.getElementById('cs-month')) return null;
+    const ms=specMonths(csRowSpec(name)); if(!ms.length) return null;
+    const a=ms[0], b=ms[ms.length-1]; return {from:ymKey(a.year,a.month), to:ymKey(b.year,b.month)}; }catch(e){ return null; }
+}
+// 期間末の残高で割合（自己資金で貸付も発生している人）：自己資金の合計（「あり」の人は K3〜M3 の自己資金額）÷（自己資金＋貸付の残り＝貸付−返金）
+function periodBalancePct(name, endYM){
+  const f=mergedFunds(name), sh=SHEET_FUNDS[name]||{};
+  let own=0, loan=0, wd=0;
+  Object.keys(f).filter(k=>k<=endYM).forEach(k=>{ own+=+f[k].own||0; loan+=+f[k].loan||0; wd+=+f[k].wd||0; });
+  if(sh.hasOwn && (+sh.ownCap||0)>own) own=+sh.ownCap;
+  // 自己資金があって貸付も発生している人だけ通算（貸付だけ・自己資金だけの人は月ごとの計算）。返金が多い分は以後の貸付と相殺（繰越）
+  if(own<=0 || loan<=0) return null;
+  const loanBal=Math.max(0, loan-wd);
+  return {pct:r6(own/(own+loanBal)*100), own, loan, wd, loanBal, end:endYM};
+}
 function ownPctSource(name, ym){
   ym = ym || curYM();
   const u = USER_RATES[name]||{}, ch = fundsChain(name);
+  if (u.monthly && isSet(u.monthly[ym])) return {pct:clampPct(u.monthly[ym]), from:'month', fc:ch[ym], ym};
+  if (ch[ym] && ch[ym].src==='manual' && ch[ym].pct!==null) return {pct:clampPct(ch[ym].pct), from:'funds', fc:ch[ym], ym};
+  // 今の清算期間の月は、期間末の残高（通算）で割合を出す（初清算の人は開始月から遡って同じ割合）
+  const sp=settlePeriodOf(name);
+  if (sp && ym>=sp.from && ym<=sp.to){ const b=periodBalancePct(name, sp.to); if(b) return {pct:clampPct(b.pct), from:'period', bal:b, sp, fc:ch[ym], ym}; }
   const here = monthOwnPct(u, ch, ym);
   if (here) return {...here, ym};
   const keys = [...new Set([...Object.keys(ch), ...Object.keys(u.monthly||{})])].filter(k=>k<ym).sort().reverse();
@@ -1656,6 +1678,7 @@ function renderUrMonthSelect(){
   el.value=cur; el.dataset.init='1';
 }
 function srcText(src){
+  if (src.from==='period'){ const b=src.bal, p=src.sp, l=k=>`${k.split('-')[0]}/${+k.split('-')[1]}`; return `清算期間 ${l(p.from)}〜${l(p.to)} の通算（自己資金¥${fmt(b.own)}／貸付の残り¥${fmt(b.loanBal)}＝貸付¥${fmt(b.loan)}−返金¥${fmt(b.wd)}）`; }
   if (src.from==='funds') return '手入力の入金額から計算';
   if (src.from==='sheet') return '個人タブの入出金から計算';
   if (src.from==='month') return '手入力の%';
