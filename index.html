@@ -4061,7 +4061,15 @@ function vexSwitchTab(name) {
   if (name === 'schedule') renderSettlement();
   if (name === 'statement') stmtInit();
   if (name === 'batch') renderSettlePay();
-  if (name === 'partners'){ renderReferrerRewards(); renderFunderRewards(); }
+  if (name === 'partners'){
+           // 清算・支払いと同じ期間を自動で紹介・資金提供側にも反映
+           const sp=csTopSpec();
+           ['rr','fr'].forEach(p=>{
+             const m=document.getElementById(p+'-mode'), mo=document.getElementById(p+'-month'), to=document.getElementById(p+'-to');
+             if(m) m.value=sp.mode; if(mo) mo.value=sp.from; if(to) to.value=sp.to||'';
+           });
+           renderReferrerRewards(); renderFunderRewards();
+         }
 }
 
 function vexLoadFromClients() {
