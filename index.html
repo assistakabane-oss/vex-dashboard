@@ -3377,7 +3377,7 @@ function sw(name){
   if(name==='network') renderNetworkTab();
   if(name==='clients') renderCliTab();
   if(name==='history') { histLoadRemote().then(arr=>{ if(arr.length) renderHistoryTab(); }); renderHistoryTab(); }
-  if(name==='payment') renderBankTab();
+  if(name==='payment') loadBankTransfers();
   if(name==='vexstatus') renderVexStatus();
   if(name==='settings') { renderPlanEditor(); renderUserRateTable(); }
 }
