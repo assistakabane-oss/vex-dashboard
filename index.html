@@ -3423,6 +3423,12 @@ function renderBankTab(){
     if(typeFilter&&r.type!==typeFilter) return false;
     if(statusFilter&&r.status!==statusFilter) return false;
     return true;
+  }).sort((a,b)=>{
+    // 未送金を先、送金済みを後ろ
+    const sA=a.status==='未送金'?0:1, sB=b.status==='未送金'?0:1;
+    if(sA!==sB) return sA-sB;
+    // 同ステータス内：振込金額の大きい順
+    return (parseFloat(b.transferAmount)||0)-(parseFloat(a.transferAmount)||0);
   });
 
   // サマリー
@@ -3624,14 +3630,9 @@ async function deleteBankEntry(){
   if(!confirm('このデータを削除しますか？')) return;
   showLoad('削除中...');
   try{
-    const res=await fetch(GAS_URL,{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({action:'deleteBankTransfer',payload:{rowIndex}})
-    });
-    const json=await res.json();
+    const json=await gasPost('deleteBankTransfer',{rowIndex});
     hideLoad();
-    if(json.success){
+    if(!json.error){
       closeBankForm();
       loadBankTransfers();
     } else {
