@@ -2121,11 +2121,20 @@ function stmtUserChanged(){
 // ================================================================
 const PARTNER_LABEL = { ref:'紹介者報酬', funder:'資金提供者報酬' };
 // 期間内の報酬を人ごとに集計 { 名前: { direct, indirect, extra, funder, total, rows:[{year,month,user,type,amount}] } }
+// 紹介報酬・資金提供者の報酬は、クライアントの清算期間にそろえる：
+//  クライアントごとに期間を選んでいる人は、その期間の終わりが表の期間に入っているときに期間全体をまとめて計上（終わっていなければ計上しない）
+function clientCustomPeriod(name){ try{ if(csBulk() || !CS_ROWS[name]) return null; const ms=specMonths(CS_ROWS[name]); return ms.length?ms:null; }catch(e){ return null; } }
+function refMonthsFor(name, months){
+  const cp=clientCustomPeriod(name); if(!cp || !months.length) return months;
+  const key=x=>ymKey(x.year,x.month), a=key(months[0]), b=key(months[months.length-1]), cs=key(cp[0]), ce=key(cp[cp.length-1]);
+  const outside=months.filter(x=>{ const k=key(x); return k<cs || k>ce; });
+  return (ce>=a && ce<=b) ? [...cp, ...outside].sort((p,q)=>key(p).localeCompare(key(q))) : outside;
+}
 function partnerTotals(kind, months){
   const out={};
   const add=(n,row)=>{ if(!n||!row.amount) return; const o=out[n]=out[n]||{direct:0,indirect:0,extra:0,funder:0,total:0,rows:[]}; o[row.key]+=row.amount; o.total+=row.amount; o.rows.push(row); };
   (S.members||[]).forEach(m=>{
-    months.forEach(({year,month})=>{
+    refMonthsFor(m.name, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
       const r=calcVex(profit, getRates(m.name, undefined, ymKey(year,month)));
       if (kind==='ref'){
@@ -2338,6 +2347,9 @@ function csSetRow(name, field, val){
   CS_ROWS[name]=sp; lsSet(CS_ROWS_KEY, CS_ROWS); renderSettlePay();
 }
 function csResetRows(){ if(!confirm('クライアントごとに選んだ期間をすべて消して、左の期間に戻しますか？')) return; CS_ROWS={}; lsSet(CS_ROWS_KEY, CS_ROWS); renderSettlePay(); }
+// 期間が終わっているか（終了月が今月より前）
+function periodEnded(months){ if(!months||!months.length) return false; const b=months[months.length-1]; return ymKey(b.year,b.month) < curYM(); }
+function notYetLabel(months){ const b=months[months.length-1]; const py=b.month===12?b.year+1:b.year, pm=b.month===12?1:b.month+1; return `⏳ ${b.year}年${b.month}月末締め（${py}年${pm}月15日払い）・今回は登録しません`; }
 function settleRow(m, months){
   const o={name:m.name, months, profit:0, user:0, refDirect:0, refIndirect:0, funder:0, ops:0, risk:0, labels:new Set(), rates:null};
   months.forEach(({year,month})=>{
@@ -2382,7 +2394,7 @@ function renderSettlePay(){
   tb.innerHTML = rows.map(r=>{ const nJs=JSON.stringify(r.name).replace(/"/g,'&quot;'); const lb=[...r.labels]; const mJs=JSON.stringify(r.months).replace(/"/g,'&quot;');
     return `<tr>
       <td style="white-space:nowrap;min-width:310px"><div>${escH(r.name)}${!bulk&&CS_ROWS[r.name]?' <span style="font-size:10px;color:var(--blue)">個別</span>':''}</div>${csRowControls(r.name)}
-        <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${r.months.length?escH(periodLabelOf(r.months)):'期間を選択'}${r.months.length&&r.months.every(({year,month})=>isLocked(r.name, ymKey(year,month)))?' 🔒':''}</div>${lockDiffHtml((S.members||[]).find(x=>x.name===r.name)||{name:r.name}, r.months)}</td>
+        ${r.months.length&&!periodEnded(r.months)?`<div style="font-size:10.5px;color:var(--gold);margin-top:2px">${notYetLabel(r.months)}</div>`:''}<div style="font-size:10.5px;color:var(--muted);margin-top:2px">${r.months.length?escH(periodLabelOf(r.months)):'期間を選択'}${r.months.length&&r.months.every(({year,month})=>isLocked(r.name, ymKey(year,month)))?' 🔒':''}</div>${lockDiffHtml((S.members||[]).find(x=>x.name===r.name)||{name:r.name}, r.months)}</td>
       <td style="font-size:11.5px">${lb.length>1?`<span style="color:var(--green)">月により異なる</span><br><span style="color:var(--muted);font-size:10.5px">${escH(lb.join(' / '))}</span>`:rateBadge(r.rates)}</td>
       <td class="mn" style="text-align:right">${yen(r.profit)}</td>
       <td class="mn" style="text-align:right;color:var(--blue);font-weight:600">${yen(r.user)}${r.sf.amount?`<div style="font-size:10.5px;color:var(--gold);font-weight:500" title="${escH(r.sf.label)}">＋不足 ${yen(r.sf.amount)}</div>`:''}</td>
@@ -2596,7 +2608,9 @@ async function registerClientPayments(){
   const bulk=csBulk();
   const addFee=parseFloat(document.getElementById('cs-addfee')?.value)||0;
   const q=(document.getElementById('cs-search')?.value||'').trim();
-  let list=settleRowsAll().map(r=>({...r, sf:shortfallFor('client', r.name, r.months)})).filter(r=>r.months.length && (r.user>0 || r.sf.amount>0));
+  const all=settleRowsAll();
+  const notYet=all.filter(r=>r.months.length && !periodEnded(r.months) && r.user>0).map(r=>r.name);
+  let list=all.map(r=>({...r, sf:shortfallFor('client', r.name, r.months)})).filter(r=>r.months.length && periodEnded(r.months) && (r.user>0 || r.sf.amount>0));
   if(q) list=list.filter(r=>r.name.includes(q));
   list.sort((a,b)=>b.user-a.user);
   if(!list.length){ alert('登録する本人報酬がありません'); return; }
@@ -2606,6 +2620,7 @@ async function registerClientPayments(){
   const head = bulk ? `${periodLabelOf(list[0].months)}のクライアント本人報酬` : 'クライアント本人報酬（期間はクライアントごと）';
   let msg=`${head}を支払い管理に登録します。${q?`\n（絞り込み中：「${q}」）`:''}\n\n${list.length}名・報酬合計 ¥${fmt(sum)}（振込額は1人あたり +¥${fmt(addFee)}）${sfSum?`\nうち前回までの不足分 ¥${fmt(sfSum)} を上乗せ`:''}\n振込予定日：各期間の翌月15日\n\n`
     +list.slice(0,12).map(r=>`・${r.name}　¥${fmt(r.user+r.sf.amount)}${r.sf.amount?`（不足分 ¥${fmt(r.sf.amount)} 含む）`:''}${bulk?'':'　'+periodLabelOf(r.months)}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
+  if(notYet.length) msg+=`\n\n⏳ 期間がまだ終わっていないので今回は登録しません：${notYet.join('、')}`;
   if(dup.length) msg+=`\n\n⚠ すでに同じ期間で登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
   if(!confirm(msg+'\n\n登録しますか？')) return;
   showLoad('登録中...'); let ok=0, fail=0;
@@ -4373,7 +4388,7 @@ function funderRewards(months){
   const out={};
   Object.keys(FUNDERS.links||{}).forEach(user=>{
     const m=(S.members||[]).find(x=>x.name===user); if(!m) return;
-    months.forEach(({year,month})=>{
+    refMonthsFor(user, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
       const r=calcVex(profit, getRates(user, undefined, ymKey(year,month)));
       funderSplit(user, r.funder).forEach(x=>{
@@ -4412,7 +4427,7 @@ function renderReferrerRewards(){
   const months = partnerTableMonths('ref');
   const out={};
   (S.members||[]).forEach(m=>{
-    months.forEach(({year,month})=>{
+    refMonthsFor(m.name, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
       const r=calcVex(profit, getRates(m.name, undefined, ymKey(year,month)));
       Object.entries(refPayouts(m.name, r.refDirect, r.refIndirect)).forEach(([n,v])=>{
