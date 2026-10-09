@@ -2211,7 +2211,18 @@ function stmtBuildPartner(kind){
   const o=(partnerTotals(kind, p.months)[name]) || {total:0, rows:[]};
   const adjLabel=(document.getElementById('stmt-adj-label')?.value||'').trim();
   const adj=parseFloat(document.getElementById('stmt-adj')?.value)||0;
-  return { kind, name, ...p, rows:o.rows.slice().sort((a,b)=>(a.year*100+a.month)-(b.year*100+b.month)||a.user.localeCompare(b.user,'ja')),
+  const rows=o.rows.slice().sort((a,b)=>(a.year*100+a.month)-(b.year*100+b.month)||a.user.localeCompare(b.user,'ja'));
+  // 紹介報酬明細用：各行に売上と報酬%を付加
+  if(kind==='ref'){
+    rows.forEach(r=>{
+      const m=(S.members||[]).find(x=>x.name===r.user);
+      r.profit = m ? ((m.months[r.year]||{})[r.month]||0) : 0;
+      const rates=getRates(r.user, undefined, ymKey(r.year, r.month));
+      // 間接紹介はref2レート、それ以外はref1レート
+      r.baseRate = r.type==='間接紹介' ? (rates.ref2||0) : (rates.ref1||0);
+    });
+  }
+  return { kind, name, ...p, rows,
     ...(()=>{ const sf = kind==='ref' ? shortfallFor('ref', name, p.months) : {amount:0}; return {sfAmount:sf.amount, sfLabel:sf.label}; })(),
     total:o.total, adjLabel, adj, payTotal:o.total+adj+(kind==='ref'?shortfallFor('ref', name, p.months).amount:0),
     issuer:document.getElementById('stmt-issuer')?.value||'', note:document.getElementById('stmt-note')?.value||'',
@@ -2220,8 +2231,16 @@ function stmtBuildPartner(kind){
 }
 function stmtHTMLPartner(d){
   const y=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
-  const rows=d.rows.map(r=>`<tr><td>${r.year}年${r.month}月</td><td>${escH(r.user)} 様</td><td>${escH(r.type)}</td><td class="n b">${y(r.amount)}</td></tr>`).join('')
-    || '<tr><td colspan="4" style="text-align:center;color:#888">この期間の報酬はありません</td></tr>';
+  const pct=r=>r.baseRate!=null ? (+(r.baseRate*100).toFixed(2))+'%' : '';
+  const isRef=d.kind==='ref';
+  const cols=isRef ? 5 : 4;
+  const thead=isRef
+    ? '<tr><th>対象月</th><th>対象のお客様</th><th>区分</th><th class="n">売上</th><th class="n">報酬%</th><th class="n">報酬額</th></tr>'
+    : '<tr><th>対象月</th><th>対象のお客様</th><th>区分</th><th class="n">報酬額</th></tr>';
+  const rows=(isRef
+    ? d.rows.map(r=>`<tr><td>${r.year}年${r.month}月</td><td>${escH(r.user)} 様</td><td>${escH(r.type)}</td><td class="n">¥${fmt(r.profit)}</td><td class="n">${pct(r)}</td><td class="n b">${y(r.amount)}</td></tr>`)
+    : d.rows.map(r=>`<tr><td>${r.year}年${r.month}月</td><td>${escH(r.user)} 様</td><td>${escH(r.type)}</td><td class="n b">${y(r.amount)}</td></tr>`)
+  ).join('') || `<tr><td colspan="${cols+1}" style="text-align:center;color:#888">この期間の報酬はありません</td></tr>`;
   return `<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>報酬明細書_${escH(d.name)}_${escH(d.periodLabel)}</title>
 <style>
 @page{size:A4;margin:16mm}
@@ -2252,12 +2271,12 @@ table{width:100%;border-collapse:collapse;margin-bottom:8px}th,td{border:1px sol
   <div>報酬の種類</div><div>${PARTNER_LABEL[d.kind]}</div>
 </div>
 <h3>明細</h3>
-<table><thead><tr><th>対象月</th><th>対象のお客様</th><th>区分</th><th class="n">報酬額</th></tr></thead>
+<table><thead>${thead}</thead>
 <tbody>${rows}
-<tr class="t"><td colspan="3">小計</td><td class="n">${y(d.total)}</td></tr>
-${d.sfAmount?`<tr><td colspan="3">${escH(d.sfLabel)}</td><td class="n">${y(d.sfAmount)}</td></tr>`:''}
-${d.adj?`<tr><td colspan="3">${escH(d.adjLabel||'調整額')}</td><td class="n">${y(d.adj)}</td></tr>`:''}
-<tr class="t"><td colspan="3">お支払金額</td><td class="n">${y(d.payTotal)}</td></tr>
+<tr class="t"><td colspan="${isRef?5:3}">小計</td><td class="n">${y(d.total)}</td></tr>
+${d.sfAmount?`<tr><td colspan="${isRef?5:3}">${escH(d.sfLabel)}</td><td class="n">${y(d.sfAmount)}</td></tr>`:''}
+${d.adj?`<tr><td colspan="${isRef?5:3}">${escH(d.adjLabel||'調整額')}</td><td class="n">${y(d.adj)}</td></tr>`:''}
+<tr class="t"><td colspan="${isRef?5:3}">お支払金額</td><td class="n">${y(d.payTotal)}</td></tr>
 </tbody></table>
 ${d.note?`<div class="note">${escH(d.note)}</div>`:''}
 <div class="issuer">${escH(d.issuer)}</div>
