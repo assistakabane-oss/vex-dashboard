@@ -277,6 +277,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <button class="pill" id="vex-tab-schedule" onclick="vexSwitchTab('schedule')" style="border-radius:var(--r-sm)">📅 清算スケジュール</button>
         <button class="pill" id="vex-tab-rule" onclick="vexSwitchTab('rule')" style="border-radius:var(--r-sm)">📐 分配ルール</button>
         <button class="pill" id="vex-tab-statement" onclick="vexSwitchTab('statement')" style="border-radius:var(--r-sm)">🧾 報酬明細</button>
+        <button class="pill" id="vex-tab-partners" onclick="vexSwitchTab('partners')" style="border-radius:var(--r-sm)">💰 紹介・資金提供</button>
       </div>
 
       <!-- ① 単独計算 -->
@@ -579,6 +580,43 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
       </div>
 
+      <!-- 💰 紹介・資金提供者の報酬 -->
+      <div id="vex-pane-partners" style="display:none">
+          <div class="tbl-card" style="margin-bottom:20px">
+            <div class="tbl-hdr">
+              <div class="tbl-ttl">💰 紹介者の報酬</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-primary btn-sm" id="sel-btn-ref" onclick="bulkPdfAndRegister('ref')" title="✅した紹介者の明細をPDFにしてZIPでダウンロードし、支払い管理（未送金）に登録">📦 明細PDF＋登録</button>
+                <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('ref')" title="表示中の期間の紹介者報酬を支払い管理に登録">💳 支払い管理に登録</button>
+                <select class="inp" id="rr-mode" onchange="renderReferrerRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
+                <input class="inp" id="rr-month" type="month" oninput="renderReferrerRewards()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+                <span id="rr-tilde" style="display:none;color:var(--muted)">〜</span>
+                <input class="inp" id="rr-to" type="month" oninput="renderReferrerRewards()" title="終了月" style="display:none;width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+              </div>
+            </div>
+            <div style="overflow-x:auto"><table>
+              <thead><tr><th style="width:28px"><input type="checkbox" id="sel-all-ref" onchange="selAll('ref',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>紹介者</th><th style="text-align:right">直紹介</th><th style="text-align:right">間接紹介</th><th style="text-align:right">合計</th><th>内訳（紹介したユーザー）</th><th></th></tr></thead>
+              <tbody id="rr-tbody"><tr class="empty"><td colspan="7">データを読み込んでください</td></tr></tbody>
+            </table></div>
+          </div>
+          <div class="tbl-card">
+            <div class="tbl-hdr">
+              <div class="tbl-ttl">💴 資金提供者の報酬</div>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-primary btn-sm" id="sel-btn-funder" onclick="bulkPdfAndRegister('funder')" title="✅した資金提供者の明細をPDFにしてZIPでダウンロードし、支払い管理（未送金）に登録">📦 明細PDF＋登録</button>
+                <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('funder')" title="表示中の期間の資金提供者報酬を支払い管理に登録">💳 支払い管理に登録</button>
+                <select class="inp" id="fr-mode" onchange="renderFunderRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
+                <input class="inp" id="fr-month" type="month" oninput="renderFunderRewards()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+                <span id="fr-tilde" style="display:none;color:var(--muted)">〜</span>
+                <input class="inp" id="fr-to" type="month" oninput="renderFunderRewards()" title="終了月" style="display:none;width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
+              </div>
+            </div>
+            <table>
+              <thead><tr><th style="width:28px"><input type="checkbox" id="sel-all-funder" onchange="selAll('funder',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>資金提供者</th><th>区分</th><th>対象ユーザー（利益 → 報酬）</th><th style="text-align:right">報酬合計</th><th></th></tr></thead>
+              <tbody id="fr-tbody"><tr class="empty"><td colspan="6">資金提供者を登録してください</td></tr></tbody>
+            </table>
+          </div>
+      </div>
     </div>
     <!-- 📈 運用状況タブ（運営・リスク管理の可視化） -->
     <div id="tab-fund" class="tab-pane">
@@ -714,40 +752,6 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div class="chart-card" style="margin-top:0">
             <div class="card-ttl">🌳 紹介ツリー（クリックで展開）</div>
             <div id="net-tree" style="font-size:13px;padding:8px 0;max-height:360px;overflow-y:auto"></div>
-          </div>
-          <div class="tbl-card" style="margin-top:20px">
-            <div class="tbl-hdr">
-              <div class="tbl-ttl">💰 紹介者の報酬</div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-primary btn-sm" id="sel-btn-ref" onclick="bulkPdfAndRegister('ref')" title="✅した紹介者の明細をPDFにしてZIPでダウンロードし、支払い管理（未送金）に登録">📦 明細PDF＋登録</button>
-                <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('ref')" title="表示中の期間の紹介者報酬を支払い管理に登録">💳 支払い管理に登録</button>
-                <select class="inp" id="rr-mode" onchange="renderReferrerRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
-                <input class="inp" id="rr-month" type="month" oninput="renderReferrerRewards()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
-                <span id="rr-tilde" style="display:none;color:var(--muted)">〜</span>
-                <input class="inp" id="rr-to" type="month" oninput="renderReferrerRewards()" title="終了月" style="display:none;width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
-              </div>
-            </div>
-            <div style="overflow-x:auto"><table>
-              <thead><tr><th style="width:28px"><input type="checkbox" id="sel-all-ref" onchange="selAll('ref',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>紹介者</th><th style="text-align:right">直紹介</th><th style="text-align:right">間接紹介</th><th style="text-align:right">合計</th><th>内訳（紹介したユーザー）</th><th></th></tr></thead>
-              <tbody id="rr-tbody"><tr class="empty"><td colspan="7">データを読み込んでください</td></tr></tbody>
-            </table></div>
-          </div>
-          <div class="tbl-card" style="margin-top:20px">
-            <div class="tbl-hdr">
-              <div class="tbl-ttl">💴 資金提供者の報酬</div>
-              <div style="display:flex;gap:8px;align-items:center">
-                <button class="btn btn-primary btn-sm" id="sel-btn-funder" onclick="bulkPdfAndRegister('funder')" title="✅した資金提供者の明細をPDFにしてZIPでダウンロードし、支払い管理（未送金）に登録">📦 明細PDF＋登録</button>
-                <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('funder')" title="表示中の期間の資金提供者報酬を支払い管理に登録">💳 支払い管理に登録</button>
-                <select class="inp" id="fr-mode" onchange="renderFunderRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
-                <input class="inp" id="fr-month" type="month" oninput="renderFunderRewards()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
-                <span id="fr-tilde" style="display:none;color:var(--muted)">〜</span>
-                <input class="inp" id="fr-to" type="month" oninput="renderFunderRewards()" title="終了月" style="display:none;width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
-              </div>
-            </div>
-            <table>
-              <thead><tr><th style="width:28px"><input type="checkbox" id="sel-all-funder" onchange="selAll('funder',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>資金提供者</th><th>区分</th><th>対象ユーザー（利益 → 報酬）</th><th style="text-align:right">報酬合計</th><th></th></tr></thead>
-              <tbody id="fr-tbody"><tr class="empty"><td colspan="6">資金提供者を登録してください</td></tr></tbody>
-            </table>
           </div>
         </div>
       </div>
@@ -4048,7 +4052,7 @@ function vexNameChanged(){
 let vexRows = [];
 
 function vexSwitchTab(name) {
-  ['single','batch','schedule','rule','statement'].forEach(n => {
+  ['single','batch','schedule','rule','statement','partners'].forEach(n => {
     const p = document.getElementById(`vex-pane-${n}`);
     const b = document.getElementById(`vex-tab-${n}`);
     if(p) p.style.display = n===name ? '' : 'none';
@@ -4057,6 +4061,7 @@ function vexSwitchTab(name) {
   if (name === 'schedule') renderSettlement();
   if (name === 'statement') stmtInit();
   if (name === 'batch') renderSettlePay();
+  if (name === 'partners'){ renderReferrerRewards(); renderFunderRewards(); }
 }
 
 function vexLoadFromClients() {
