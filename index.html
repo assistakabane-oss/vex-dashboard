@@ -1520,11 +1520,11 @@ function fundsNote(fc){
   if(fc.carryOut) parts.push(`<span style="color:var(--gold)">次の期間へ繰越 ¥${fmt(fc.carryOut)}</span>`);
   return parts.length ? '（'+parts.join('・')+'）' : '';
 }
-// ある月の比率（① 手入力の入金額 → ② 手入力の% → ③ シートの入金額）
+// ある月の比率（① 月別の運用区分・手入力の% → ② 手入力の入金額 → ③ シートの入金額）
 function monthOwnPct(u, ch, k){
   const fc = ch[k];
+  if (u.monthly && isSet(u.monthly[k])) return {pct:clampPct(u.monthly[k]), from:'month', fc};   // 月別の運用区分（手入力）が最優先
   if (fc && fc.src==='manual' && fc.pct!==null) return {pct:clampPct(fc.pct), from:'funds', fc};
-  if (u.monthly && isSet(u.monthly[k])) return {pct:clampPct(u.monthly[k]), from:'month', fc};
   if (fc && fc.pct!==null) return {pct:clampPct(fc.pct), from:'sheet', fc};
   return null;
 }
@@ -1767,6 +1767,7 @@ function ceOpen(name){
   const rf = getRefs(name);
   CE = { name, plan: u.custom ? 'custom' : (u.plan||''), custom: u.custom ? {...u.custom} : null, funders: userFunders(name).map(l=>({...l})),
          refs1: ceRows(rf.refs1), refsManual: rf.src==='manual',
+         monthly: {...(u.monthly||{})}, ownPct: isSet(u.ownPct)?u.ownPct:'',
          r2mode: rf.ref2src!=='manual' ? 'auto' : (rf.refs2&&rf.refs2.length ? 'manual' : (rf.noMerge ? 'none0' : 'none')), refs2: ceRows(rf.refs2||[]) };
   document.getElementById('ce-title').textContent = `✏️ ${name}`;
   ceRender();
@@ -1828,10 +1829,13 @@ function ceRender(){
     ${sec('自己資金の割合')}
     <div style="font-size:12.5px;color:var(--dim);margin-bottom:8px">今月：<strong style="color:var(--text)">${+src.pct.toFixed(1)}%</strong>（${srcText(src)}）${CE.plan&&CE.plan!==''?'　<span style="color:var(--muted)">※プランを固定・個別率にしている間は割合は使いません</span>':''}</div>
     <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-      <div><label class="lbl">共通の割合（%）</label><input class="inp" id="ce-ownpct" type="number" min="0" max="100" value="${isSet(u.ownPct)?u.ownPct:''}" placeholder="${groupOwnPct(n)}" style="width:110px;font-family:var(--mono)"/></div>
+      <div><label class="lbl">共通の割合（%）</label><input class="inp" id="ce-ownpct" type="number" min="0" max="100" value="${CE.ownPct}" placeholder="${groupOwnPct(n)}" oninput="CE.ownPct=this.value" style="width:110px;font-family:var(--mono)"/></div>
       <button class="btn btn-secondary btn-sm" onclick="ceOpenMonthly()">📅 月別の入出金・割合を開く</button>
     </div>
     <p class="help">月ごとの割合は個人タブの入出金から自動計算します。「共通の割合」は、入出金の記録がない月に使います（空欄＝グループ欄から判定）。</p>
+    ${sec('月別の運用区分')}
+    <div id="ce-monthly"></div>
+    <p class="help">月ごとに「自己資金／貸付／ミックス」を選ぶと、その月は入出金からの自動計算より優先します。ミックスは自己資金と貸付の割合（合計100%）を入れてください。「自動」に戻すと個人タブの入出金から計算します。${CE.plan?'<br><span style="color:var(--gold)">※プランを固定・個別率にしている間は、運用区分は使いません（プランを「自動」にしてください）</span>':''}</p>
     ${sec('資金提供者')}
     <div id="ce-funders">${CE.funders.map((x,i)=>`<div style="display:flex;gap:6px;margin-bottom:6px;align-items:center">
       <select class="inp" onchange="CE.funders[${i}].funder=this.value" style="flex:1;padding:5px 8px;font-size:12px;font-family:var(--sans)"><option value="">選択…</option>${(FUNDERS.list||[]).map(f=>`<option value="${escH(f.name)}" ${f.name===x.funder?'selected':''}>${escH(f.name)}（${f.type==='socialnavi'?'SocialNavi':'個人'}）</option>`).join('')}</select>
@@ -1843,7 +1847,48 @@ function ceRender(){
       <button class="btn btn-primary" style="flex:1" onclick="ceSave()">💾 保存</button>
       <button class="btn btn-secondary" onclick="ceReset()" title="この人の手入力をすべて消して自動に戻す">↺ すべて自動に戻す</button>
     </div>`;
-  ceShareSum();
+  ceShareSum(); ceRenderMonthly();
+}
+// ---- 月別の運用区分（2025年9月〜売上の最新月）----
+const CE_MONTH_FROM='2025-09';
+function ceAutoPct(n, ym){ const u=USER_RATES[n]; const save=u&&u.monthly; if(u) u.monthly={}; try{ return ownPctSource(n, ym); } finally { if(u){ if(save) u.monthly=save; else delete u.monthly; } } }
+function ceRenderMonthly(){
+  const el=document.getElementById('ce-monthly'); if(!el||!CE) return;
+  const n=CE.name, m=(S.members||[]).find(x=>x.name===n), to=latestSalesYM()>CE_MONTH_FROM?latestSalesYM():CE_MONTH_FROM;
+  const months=monthsBetween(CE_MONTH_FROM, to).reverse();
+  const st='padding:4px 6px;font-size:12px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text)';
+  el.innerHTML = `<div style="max-height:320px;overflow:auto;border:1px solid var(--border);border-radius:8px"><table style="width:100%;font-size:12px">
+    <thead><tr><th style="position:sticky;top:0;background:var(--card)">月</th><th style="position:sticky;top:0;background:var(--card);text-align:right">利益</th><th style="position:sticky;top:0;background:var(--card)">運用区分</th><th style="position:sticky;top:0;background:var(--card)">自己資金 ／ 貸付</th><th style="position:sticky;top:0;background:var(--card);text-align:right">本人の率</th></tr></thead><tbody>
+    ${months.map(({year,month})=>{
+      const ym=ymKey(year,month), v=CE.monthly[ym], set=isSet(v), p=set?clampPct(v):null;
+      const mode = !set ? 'auto' : p>=100 ? 'own' : p<=0 ? 'loan' : 'mix';
+      const a = ceAutoPct(n, ym);
+      const pct = set ? p : a.pct, profit=m?((m.months[year]||{})[month]||0):0;
+      const rate = CE.plan ? null : blendRates(pct).user;
+      return `<tr style="${profit?'':'opacity:.6'}">
+        <td style="white-space:nowrap">${year}年${month}月</td>
+        <td class="mn" style="text-align:right">${profit?'¥'+fmt(profit):'—'}</td>
+        <td><select onchange="ceSetMonthMode('${ym}',this.value)" style="${st};font-family:var(--sans);width:150px">
+          <option value="auto" ${mode==='auto'?'selected':''}>自動（自己資金${+a.pct.toFixed(1)}%）</option>
+          <option value="own" ${mode==='own'?'selected':''}>自己資金</option>
+          <option value="loan" ${mode==='loan'?'selected':''}>貸付</option>
+          <option value="mix" ${mode==='mix'?'selected':''}>ミックス</option></select></td>
+        <td style="white-space:nowrap">${mode==='mix'
+          ? `<input type="number" min="0" max="100" step="0.1" value="${+p.toFixed(2)}" onchange="ceSetMonthPct('${ym}',this.value,'own')" style="${st};width:54px;font-family:var(--mono)"/>% ／ <input type="number" min="0" max="100" step="0.1" value="${+(100-p).toFixed(2)}" onchange="ceSetMonthPct('${ym}',this.value,'loan')" style="${st};width:54px;font-family:var(--mono)"/>%`
+          : `<span style="color:var(--muted)">${+pct.toFixed(1)}% ／ ${+(100-pct).toFixed(1)}%${set?'':'（'+escH(srcText(a))+'）'}</span>`}</td>
+        <td class="mn" style="text-align:right">${rate===null?'<span style="color:var(--muted)">プラン固定</span>':pctTxt(rate)}</td></tr>`; }).join('')}
+  </tbody></table></div>`;
+}
+function ceSetMonthMode(ym, mode){
+  if(mode==='auto') delete CE.monthly[ym];
+  else if(mode==='own') CE.monthly[ym]=100;
+  else if(mode==='loan') CE.monthly[ym]=0;
+  else { const cur=CE.monthly[ym]; CE.monthly[ym] = isSet(cur)&&cur>0&&cur<100 ? cur : 50; }
+  ceRenderMonthly();
+}
+function ceSetMonthPct(ym, v, which){
+  let x=parseFloat(v); if(isNaN(x)) return; x=Math.max(0,Math.min(100,x)); if(which==='loan') x=100-x;
+  CE.monthly[ym]=r6(x); setTimeout(ceRenderMonthly,0);
 }
 // 編集画面の行：{name, share, p(利益の%), touched(率を手で変えた)}
 function ceRows(list){ return (list||[]).map(r=>r.pct!==undefined ? {name:r.name, share:r.share, p:+(r.pct*100).toFixed(2), touched:true} : {name:r.name, share:r.share, touched:false}); }
@@ -1919,6 +1964,7 @@ function ceSave(){
     u.custom={...CE.custom}; delete u.plan;
   } else { u.custom=null; if(CE.plan) u.plan=CE.plan; else delete u.plan; }
   const op=document.getElementById('ce-ownpct').value; u.ownPct = isSet(op) ? clampPct(op) : null;
+  u.monthly = {}; Object.entries(CE.monthly||{}).forEach(([k,v])=>{ if(isSet(v)) u.monthly[k]=clampPct(v); });
   const fl=CE.funders.filter(x=>x.funder&&funderOf(x.funder)).map(x=>({funder:x.funder, amount:(+x.amount)||0}));
   FUNDERS.links=FUNDERS.links||{}; if(fl.length) FUNDERS.links[n]=fl; else delete FUNDERS.links[n];
   cleanupUserRate(n); saveUserRates(); saveFunders(); saveClientRefs();
