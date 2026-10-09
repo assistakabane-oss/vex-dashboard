@@ -358,7 +358,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
             <label style="font-size:12px;color:var(--dim)" title="振込額に1人あたり加算する金額（旧一括計算では+2,000円）">振込加算 ¥<input class="inp" id="cs-addfee" type="number" value="2000" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)"/></label>
             <button class="btn btn-secondary btn-sm" onclick="lockCurrentPeriod()" title="表示中の期間の全員の月別利益を保存し、以後シートが変わってもこの利益で計算する">🔒 この期間を確定</button>
-            <button class="btn btn-primary btn-sm" onclick="registerClientPayments()">💳 支払い管理に登録</button>
+            <button class="btn btn-primary btn-sm" id="sel-btn-client" onclick="bulkPdfAndRegister('client')" title="✅した人の明細をPDFにしてZIPでダウンロードし、支払い管理（未送金）に登録">📦 明細PDF＋登録</button>
+            <button class="btn btn-secondary btn-sm" onclick="registerClientPayments()">💳 支払い管理に登録（全員）</button>
           </div>
         </div>
         <div class="tbl-card">
@@ -371,14 +372,14 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div style="overflow-x:auto">
             <table style="min-width:1300px">
               <thead><tr>
-                <th>利用者 ／ 期間</th><th>区分</th><th style="text-align:right">期間の利益</th>
+                <th style="width:28px"><input type="checkbox" id="sel-all-client" onchange="selAll('client',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>利用者 ／ 期間</th><th>区分</th><th style="text-align:right">期間の利益</th>
                 <th style="text-align:right;color:var(--blue)">本人報酬</th>
                 <th style="text-align:right;color:#a5c4ff">直紹介</th><th style="text-align:right;color:#a5c4ff">間接紹介</th>
                 <th style="text-align:right;color:#ec4899">資金提供者</th>
                 <th style="text-align:right;color:var(--gold)">運営</th><th style="text-align:right;color:var(--green)">リスク管理</th>
                 <th>紹介者</th><th></th>
               </tr></thead>
-              <tbody id="cs-tbody"><tr class="empty"><td colspan="11">データを読み込んでください</td></tr></tbody>
+              <tbody id="cs-tbody"><tr class="empty"><td colspan="12">データを読み込んでください</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -718,6 +719,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <div class="tbl-hdr">
               <div class="tbl-ttl">💰 紹介者の報酬</div>
               <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-primary btn-sm" id="sel-btn-ref" onclick="bulkPdfAndRegister('ref')" title="✅した紹介者の明細をPDFにしてZIPでダウンロードし、支払い管理（未送金）に登録">📦 明細PDF＋登録</button>
                 <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('ref')" title="表示中の期間の紹介者報酬を支払い管理に登録">💳 支払い管理に登録</button>
                 <select class="inp" id="rr-mode" onchange="renderReferrerRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
                 <input class="inp" id="rr-month" type="month" oninput="renderReferrerRewards()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
@@ -726,14 +728,15 @@ tr:hover td{background:rgba(255,255,255,.015)}
               </div>
             </div>
             <div style="overflow-x:auto"><table>
-              <thead><tr><th>紹介者</th><th style="text-align:right">直紹介</th><th style="text-align:right">間接紹介</th><th style="text-align:right">合計</th><th>内訳（紹介したユーザー）</th><th></th></tr></thead>
-              <tbody id="rr-tbody"><tr class="empty"><td colspan="6">データを読み込んでください</td></tr></tbody>
+              <thead><tr><th style="width:28px"><input type="checkbox" id="sel-all-ref" onchange="selAll('ref',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>紹介者</th><th style="text-align:right">直紹介</th><th style="text-align:right">間接紹介</th><th style="text-align:right">合計</th><th>内訳（紹介したユーザー）</th><th></th></tr></thead>
+              <tbody id="rr-tbody"><tr class="empty"><td colspan="7">データを読み込んでください</td></tr></tbody>
             </table></div>
           </div>
           <div class="tbl-card" style="margin-top:20px">
             <div class="tbl-hdr">
               <div class="tbl-ttl">💴 資金提供者の報酬</div>
               <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn btn-primary btn-sm" id="sel-btn-funder" onclick="bulkPdfAndRegister('funder')" title="✅した資金提供者の明細をPDFにしてZIPでダウンロードし、支払い管理（未送金）に登録">📦 明細PDF＋登録</button>
                 <button class="btn btn-secondary btn-sm" onclick="registerPartnerPayments('funder')" title="表示中の期間の資金提供者報酬を支払い管理に登録">💳 支払い管理に登録</button>
                 <select class="inp" id="fr-mode" onchange="renderFunderRewards()" style="width:150px;padding:6px 8px;font-size:12px;font-family:var(--sans)"><option value="q">四半期（その月を含む）</option><option value="m">単月</option><option value="r">期間を指定</option></select>
                 <input class="inp" id="fr-month" type="month" oninput="renderFunderRewards()" title="対象月（期間指定のときは開始月）" style="width:150px;padding:6px 10px;font-size:12px;font-family:var(--mono)"/>
@@ -742,8 +745,8 @@ tr:hover td{background:rgba(255,255,255,.015)}
               </div>
             </div>
             <table>
-              <thead><tr><th>資金提供者</th><th>区分</th><th>対象ユーザー（利益 → 報酬）</th><th style="text-align:right">報酬合計</th><th></th></tr></thead>
-              <tbody id="fr-tbody"><tr class="empty"><td colspan="5">資金提供者を登録してください</td></tr></tbody>
+              <thead><tr><th style="width:28px"><input type="checkbox" id="sel-all-funder" onchange="selAll('funder',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>資金提供者</th><th>区分</th><th>対象ユーザー（利益 → 報酬）</th><th style="text-align:right">報酬合計</th><th></th></tr></thead>
+              <tbody id="fr-tbody"><tr class="empty"><td colspan="6">資金提供者を登録してください</td></tr></tbody>
             </table>
           </div>
         </div>
@@ -2283,19 +2286,20 @@ function partnerTableMonths(kind){
   if(mode==='r') return monthsBetween(mi.value, to?.value);
   return mode==='q' ? getQuarterMonths(Math.ceil(mo/3)*3, y) : [{year:y, month:mo}];
 }
-async function registerPartnerPayments(kind){
+async function registerPartnerPayments(kind, opts={}){
   const months=partnerTableMonths(kind), label=periodLabelOf(months), payDate=payDateOf(months);
   const pt=partnerTotals(kind, months);
   if(kind==='ref') Object.keys(PAID.ref||{}).forEach(n=>{ if(!pt[n]) pt[n]={direct:0,indirect:0,extra:0,funder:0,total:0,rows:[]}; });
   Object.entries(pt).forEach(([n,o])=>{ o.sf = kind==='ref' ? shortfallFor('ref', n, months) : {amount:0, items:[]}; });
-  const list=Object.entries(pt).filter(([,o])=>o.total>0||o.sf.amount>0).sort((a,b)=>(b[1].total+b[1].sf.amount)-(a[1].total+a[1].sf.amount));
-  if(!list.length){ alert(`${label}に登録する${PARTNER_LABEL[kind]}がありません`); return; }
+  let list=Object.entries(pt).filter(([,o])=>o.total>0||o.sf.amount>0).sort((a,b)=>(b[1].total+b[1].sf.amount)-(a[1].total+a[1].sf.amount));
+  if(opts.only) list=list.filter(([n])=>opts.only.has(n));
+  if(!list.length){ if(!opts.noConfirm) alert(`${label}に登録する${PARTNER_LABEL[kind]}がありません`); return {ok:0,fail:0}; }
   const reg=lsGet(PAYREG_KEY,{}), keyOf=n=>`${kind}|${label}|${n}`;
   const dup=list.filter(([n])=>reg[keyOf(n)]).map(([n])=>n);
   const sum=list.reduce((a,[,o])=>a+o.total+o.sf.amount,0), sfSum=list.reduce((a,[,o])=>a+o.sf.amount,0);
   let msg=`${label}の${PARTNER_LABEL[kind]}を支払い管理に登録します。\n\n${list.length}名・合計 ¥${fmt(sum)}${sfSum?`\nうち前回までの不足分 ¥${fmt(sfSum)} を上乗せ`:''}\n振込予定日：${payDate}\n\n`+list.slice(0,12).map(([n,o])=>`・${n}　¥${fmt(o.total+o.sf.amount)}${o.sf.amount?`（不足分 ¥${fmt(o.sf.amount)} 含む）`:''}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
   if(dup.length) msg+=`\n\n⚠ すでに登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
-  if(!confirm(msg+'\n\n登録しますか？')) return;
+  if(!opts.noConfirm && !confirm(msg+'\n\n登録しますか？')) return;
   showLoad('登録中...'); let ok=0, fail=0;
   for(const [n,o] of list){
     const cl=(S.clients||{})[n]||{};
@@ -2309,6 +2313,7 @@ async function registerPartnerPayments(kind){
     try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(n)]=new Date().toISOString(); if(o.sf.amount) shortfallMark(kind, n, o.sf, payDate); } else fail++; }catch(e){ fail++; }
   }
   lsSet(PAYREG_KEY, reg); hideLoad();
+  if(opts.noConfirm) return {ok, fail};
   alert(`登録完了：${ok}件 / 失敗：${fail}件`);
   if(ok>0){ sw('payment'); loadBankTransfers(); }
 }
@@ -2389,10 +2394,12 @@ function renderSettlePay(){
   rows.sort((a,b)=>b.user-a.user);
   document.getElementById('cs-count').textContent=rows.length+'名';
   try{ renderPaid(); }catch(e){} try{ renderLockStatus(); }catch(e){}
-  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="11">この期間の報酬はありません（「報酬0円の人を隠す」を外すか、名前で検索すると全員表示されます）</td></tr>'; return; }
+  SEL_VIS.client=rows.map(r=>r.name); selUpdate('client');
+  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="12">この期間の報酬はありません（「報酬0円の人を隠す」を外すか、名前で検索すると全員表示されます）</td></tr>'; return; }
   const sum=k=>rows.reduce((a,r)=>a+r[k],0), yen=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
   tb.innerHTML = rows.map(r=>{ const nJs=JSON.stringify(r.name).replace(/"/g,'&quot;'); const lb=[...r.labels]; const mJs=JSON.stringify(r.months).replace(/"/g,'&quot;');
     return `<tr>
+      <td>${selBox('client', r.name)}</td>
       <td style="white-space:nowrap;min-width:310px"><div>${escH(r.name)}${!bulk&&CS_ROWS[r.name]?' <span style="font-size:10px;color:var(--blue)">個別</span>':''}</div>${csRowControls(r.name)}
         ${r.months.length&&!periodEnded(r.months)?`<div style="font-size:10.5px;color:var(--gold);margin-top:2px">${notYetLabel(r.months)}</div>`:''}<div style="font-size:10.5px;color:var(--muted);margin-top:2px">${r.months.length?escH(periodLabelOf(r.months)):'期間を選択'}${r.months.length&&r.months.every(({year,month})=>isLocked(r.name, ymKey(year,month)))?' 🔒':''}</div>${lockDiffHtml((S.members||[]).find(x=>x.name===r.name)||{name:r.name}, r.months)}</td>
       <td style="font-size:11.5px">${lb.length>1?`<span style="color:var(--green)">月により異なる</span><br><span style="color:var(--muted);font-size:10.5px">${escH(lb.join(' / '))}</span>`:rateBadge(r.rates)}</td>
@@ -2405,7 +2412,7 @@ function renderSettlePay(){
       <td style="white-space:nowrap"><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenClientPeriod(${nJs}, ${mJs})" ${r.months.length?'':'disabled'}>🧾 明細</button>
         <button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="ceOpen(${nJs})" title="紹介者・プランなどを編集">✏️</button></td>
     </tr>`; }).join('')
-    + `<tr class="tot"><td colspan="2">合計（${rows.length}名）</td><td class="mn" style="text-align:right">${yen(sum('profit'))}</td><td class="mn" style="text-align:right">${yen(sum('user'))}</td><td class="mn" style="text-align:right">${yen(sum('refDirect'))}</td><td class="mn" style="text-align:right">${yen(sum('refIndirect'))}</td><td class="mn" style="text-align:right">${yen(sum('funder'))}</td><td class="mn" style="text-align:right">${yen(sum('ops'))}</td><td class="mn" style="text-align:right">${yen(sum('risk'))}</td><td></td><td></td></tr>`;
+    + `<tr class="tot"><td></td><td colspan="2">合計（${rows.length}名）</td><td class="mn" style="text-align:right">${yen(sum('profit'))}</td><td class="mn" style="text-align:right">${yen(sum('user'))}</td><td class="mn" style="text-align:right">${yen(sum('refDirect'))}</td><td class="mn" style="text-align:right">${yen(sum('refIndirect'))}</td><td class="mn" style="text-align:right">${yen(sum('funder'))}</td><td class="mn" style="text-align:right">${yen(sum('ops'))}</td><td class="mn" style="text-align:right">${yen(sum('risk'))}</td><td></td><td></td></tr>`;
 }
 
 
@@ -2594,6 +2601,91 @@ function renderPaid(){
       <td class="mn" style="text-align:right">${yen2(r.tot)}</td>
       <td><button onclick="paidDel('${kind}',${J(r.name)},${J(r.pk)})" style="background:transparent;border:none;color:var(--muted);cursor:pointer">✕</button></td></tr>`; }).join('');
 }
+
+// ================================================================
+// ✅ 選んだ人の明細を一括PDF（ZIP）＋支払い管理に登録
+// ================================================================
+const SEL={client:new Set(), ref:new Set(), funder:new Set()}, SEL_VIS={client:[], ref:[], funder:[]};
+function selBox(kind, name){ return `<input type="checkbox" ${SEL[kind].has(name)?'checked':''} onchange="selToggle('${kind}',${JSON.stringify(name).replace(/"/g,'&quot;')},this.checked)" style="width:auto;cursor:pointer"/>`; }
+function selToggle(kind, name, on){ on ? SEL[kind].add(name) : SEL[kind].delete(name); selUpdate(kind); }
+function selAll(kind, on){ (SEL_VIS[kind]||[]).forEach(n=> on ? SEL[kind].add(n) : SEL[kind].delete(n));
+  ({client:renderSettlePay, ref:renderReferrerRewards, funder:renderFunderRewards})[kind](); }
+function selUpdate(kind){
+  const vis=SEL_VIS[kind]||[], n=vis.filter(x=>SEL[kind].has(x)).length;
+  const b=document.getElementById('sel-btn-'+kind); if(b) b.textContent = n ? `📦 ✅${n}名の明細PDF＋登録` : '📦 明細PDF＋登録';
+  const a=document.getElementById('sel-all-'+kind); if(a){ a.checked = vis.length>0 && n===vis.length; a.indeterminate = n>0 && n<vis.length; }
+}
+function loadScriptOnce(src){ return new Promise((res,rej)=>{ if(document.querySelector(`script[src="${src}"]`)) return res(); const sc=document.createElement('script'); sc.src=src; sc.onload=res; sc.onerror=()=>rej(new Error('読み込み失敗：'+src)); document.head.appendChild(sc); }); }
+async function loadPdfLibs(){
+  if(!window.html2canvas) await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+  if(!window.jspdf) await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js');
+  if(!window.JSZip) await loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+}
+// 明細HTML → A4のPDF（Blob）
+async function htmlToPdfBlob(html){
+  const f=document.createElement('iframe'); f.style.cssText='position:fixed;left:-12000px;top:0;width:794px;height:1123px;border:0;background:#fff';
+  document.body.appendChild(f);
+  await new Promise(r=>{ f.onload=r; f.srcdoc=html; }); await new Promise(r=>setTimeout(r,120));
+  const doc=f.contentDocument, el=doc.body; el.style.background='#fff';
+  const canvas=await html2canvas(el,{scale:2, backgroundColor:'#ffffff', useCORS:true, windowWidth:794, width:794, height:Math.max(el.scrollHeight, doc.documentElement.scrollHeight)});
+  f.remove();
+  const {jsPDF}=window.jspdf; const pdf=new jsPDF({unit:'mm', format:'a4'});
+  const M=8, W=210-M*2, H=297-M*2, pxPerMm=canvas.width/W, pagePx=Math.floor(H*pxPerMm);
+  for(let y=0, p=0; y<canvas.height; y+=pagePx, p++){
+    const h=Math.min(pagePx, canvas.height-y), c=document.createElement('canvas'); c.width=canvas.width; c.height=h;
+    c.getContext('2d').drawImage(canvas, 0, y, canvas.width, h, 0, 0, canvas.width, h);
+    if(p) pdf.addPage();
+    pdf.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', M, M, W, h/pxPerMm);
+  }
+  return pdf.output('blob');
+}
+// 明細の入力欄をセットして明細データを作る（画面は切り替えない）
+function stmtHtmlFor(kind, name, months){
+  const g=id=>document.getElementById(id);
+  g('stmt-kind').value=kind; g('stmt-user').value=name;
+  const last=months[months.length-1], first=months[0];
+  if(isQuarterMonths(months)){ g('stmt-mode').value='quarter'; g('stmt-year').value=last.year; g('stmt-qmonth').value=String(last.month); }
+  else if(months.length>1){ g('stmt-mode').value='range'; g('stmt-from').value=ymKey(first.year,first.month); g('stmt-to').value=ymKey(last.year,last.month); }
+  else { g('stmt-mode').value='month'; g('stmt-month').value=ymKey(last.year,last.month); }
+  if(kind==='client'){ const rf=getRefs(name); if(g('stmt-ownpct')) g('stmt-ownpct').value=''; g('stmt-ref1').value=rf.ref1||''; g('stmt-ref2').value=rf.ref2||''; }
+  const d = kind==='client' ? stmtBuild() : stmtBuildPartner(kind);
+  if(d.error) return {error:d.error};
+  return {html: kind==='client' ? stmtHTML(d) : stmtHTMLPartner(d), label:d.periodLabel};
+}
+async function bulkPdfAndRegister(kind){
+  const vis=SEL_VIS[kind]||[], names=vis.filter(n=>SEL[kind].has(n));
+  if(!names.length){ alert('明細を作る人に ✅ を入れてください'); return; }
+  let items=[], skipped=[];
+  if(kind==='client'){
+    settleRowsAll().filter(r=>names.includes(r.name)).forEach(r=>{ if(!r.months.length) return; if(!periodEnded(r.months)){ skipped.push(r.name); return; } items.push({name:r.name, months:r.months, amount:r.user}); });
+  } else {
+    const months=partnerTableMonths(kind), pt=partnerTotals(kind, months);
+    names.forEach(n=>items.push({name:n, months, amount:(pt[n]||{}).total||0}));
+  }
+  if(!items.length){ alert('明細を作れる人がいません'+(skipped.length?`\n（期間がまだ終わっていない：${skipped.join('、')}）`:'')); return; }
+  const kl={client:'本人報酬', ref:'紹介者報酬', funder:'資金提供者報酬'}[kind];
+  if(!confirm(`${items.length}名の${kl}の明細をPDFにしてZIPでダウンロードし、支払い管理に「未送金」で登録します。\n\n`+items.slice(0,15).map(x=>`・${x.name}　¥${fmt(x.amount)}　${periodLabelOf(x.months)}`).join('\n')+(items.length>15?`\n…ほか${items.length-15}名`:'')+(skipped.length?`\n\n⏳ 期間がまだ終わっていないので除外：${skipped.join('、')}`:'')+'\n\nよろしいですか？')) return;
+  const g=id=>document.getElementById(id), keep={kind:g('stmt-kind').value, user:g('stmt-user').value, adj:g('stmt-adj')?.value, adjL:g('stmt-adj-label')?.value};
+  if(g('stmt-adj')) g('stmt-adj').value=''; if(g('stmt-adj-label')) g('stmt-adj-label').value='';
+  let ok=0; const errs=[];
+  try{
+    showLoad('PDFの準備中...'); await loadPdfLibs();
+    const zip=new JSZip(), used={};
+    for(let i=0;i<items.length;i++){
+      const it=items[i]; showLoad(`PDFを作成中 ${i+1}/${items.length}：${it.name}`);
+      try{ const h=stmtHtmlFor(kind, it.name, it.months); if(h.error){ errs.push(`${it.name}：${h.error}`); continue; }
+        let fn=`報酬明細_${it.name}_${h.label}.pdf`.replace(/[\\/:*?"<>|]/g,'_'); if(used[fn]) fn=fn.replace(/\.pdf$/,`_${i+1}.pdf`); used[fn]=1;
+        zip.file(fn, await htmlToPdfBlob(h.html)); ok++; }catch(e){ errs.push(`${it.name}：${e.message}`); }
+    }
+    if(ok){ showLoad('ZIPを作成中...'); const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`報酬明細_${kl}_${new Date().toISOString().slice(0,10)}.zip`; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },2000); }
+  }catch(e){ hideLoad(); alert('PDFの作成に失敗しました：'+e.message); return; }
+  finally{ g('stmt-kind').value=keep.kind; g('stmt-user').value=keep.user; if(g('stmt-adj')) g('stmt-adj').value=keep.adj||''; if(g('stmt-adj-label')) g('stmt-adj-label').value=keep.adjL||''; }
+  hideLoad();
+  const only=new Set(items.map(x=>x.name));
+  const res = kind==='client' ? await registerClientPayments({only, noConfirm:true}) : await registerPartnerPayments(kind, {only, noConfirm:true});
+  alert(`📦 PDF：${ok}件をZIPでダウンロードしました\n💳 支払い管理（未送金）に登録：${(res||{}).ok||0}件`+((res||{}).fail?` / 失敗 ${res.fail}件`:'')+(errs.length?`\n\n作れなかった明細：\n${errs.join('\n')}`:'')+'\n\n送金したら 💳 支払い管理で「送金済み」に✅を入れてください（📒 清算履歴に載ります）');
+  if((res||{}).ok){ sw('payment'); loadBankTransfers(); }
+}
 // 明細を期間付きで開く
 function stmtOpenClientPeriod(name, months){
   if(!months||!months.length) return;
@@ -2604,16 +2696,17 @@ function stmtOpenClientPeriod(name, months){
   else { document.getElementById('stmt-mode').value='month'; document.getElementById('stmt-month').value=ymKey(last.year,last.month); }
   stmtModeChanged(); stmtRender();
 }
-async function registerClientPayments(){
+async function registerClientPayments(opts={}){
   const bulk=csBulk();
   const addFee=parseFloat(document.getElementById('cs-addfee')?.value)||0;
   const q=(document.getElementById('cs-search')?.value||'').trim();
   const all=settleRowsAll();
   const notYet=all.filter(r=>r.months.length && !periodEnded(r.months) && r.user>0).map(r=>r.name);
   let list=all.map(r=>({...r, sf:shortfallFor('client', r.name, r.months)})).filter(r=>r.months.length && periodEnded(r.months) && (r.user>0 || r.sf.amount>0));
-  if(q) list=list.filter(r=>r.name.includes(q));
+  if(q && !opts.only) list=list.filter(r=>r.name.includes(q));
+  if(opts.only) list=list.filter(r=>opts.only.has(r.name));
   list.sort((a,b)=>b.user-a.user);
-  if(!list.length){ alert('登録する本人報酬がありません'); return; }
+  if(!list.length){ if(!opts.noConfirm) alert('登録する本人報酬がありません'); return {ok:0,fail:0}; }
   const reg=lsGet(PAYREG_KEY,{}), keyOf=r=>`client|${periodLabelOf(r.months)}|${r.name}`;
   const dup=list.filter(r=>reg[keyOf(r)]).map(r=>r.name);
   const sum=list.reduce((a,r)=>a+r.user+r.sf.amount,0), sfSum=list.reduce((a,r)=>a+r.sf.amount,0);
@@ -2622,7 +2715,7 @@ async function registerClientPayments(){
     +list.slice(0,12).map(r=>`・${r.name}　¥${fmt(r.user+r.sf.amount)}${r.sf.amount?`（不足分 ¥${fmt(r.sf.amount)} 含む）`:''}${bulk?'':'　'+periodLabelOf(r.months)}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
   if(notYet.length) msg+=`\n\n⏳ 期間がまだ終わっていないので今回は登録しません：${notYet.join('、')}`;
   if(dup.length) msg+=`\n\n⚠ すでに同じ期間で登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
-  if(!confirm(msg+'\n\n登録しますか？')) return;
+  if(!opts.noConfirm && !confirm(msg+'\n\n登録しますか？')) return;
   showLoad('登録中...'); let ok=0, fail=0;
   for(const r of list){
     const cl=(S.clients||{})[r.name]||{}, lb=[...r.labels], label=periodLabelOf(r.months);
@@ -2634,6 +2727,7 @@ async function registerClientPayments(){
     try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(r)]=new Date().toISOString(); if(r.sf.amount) shortfallMark('client', r.name, r.sf, payDateOf(r.months)); } else fail++; }catch(e){ fail++; }
   }
   lsSet(PAYREG_KEY, reg); hideLoad();
+  if(opts.noConfirm) return {ok, fail};
   alert(`登録完了：${ok}件 / 失敗：${fail}件`);
   if(ok>0){ sw('payment'); loadBankTransfers(); }
 }
@@ -3365,7 +3459,7 @@ function renderBankTab(){
         <td class="mn" style="color:var(--gold);font-size:12px">¥${fmt(parseFloat(r.indirectReward)||0)}</td>
         <td style="font-size:12px;color:var(--muted)">${r.transferDate||'—'}</td>
         <td style="font-size:12px">${r.referrer||'—'}</td>
-        <td><span class="rb" style="background:${isDone?'rgba(52,199,138,.15)':'rgba(232,168,74,.15)'};color:${isDone?'var(--green)':'var(--gold)'};font-size:11px">${r.status||'—'}</span></td>
+        <td style="white-space:nowrap"><label style="display:flex;gap:5px;align-items:center;cursor:pointer;font-size:11.5px;color:${isDone?'var(--green)':'var(--gold)'}"><input type="checkbox" ${isDone?'checked':''} onchange="bankToggleDone(${r.rowIndex}, this.checked, this)" style="width:auto;accent-color:#34c78a"/>${isDone?'送金済み':'未送金'}</label></td>
         <td style="font-size:11px;color:var(--muted);max-width:120px">${r.note||'—'}</td>
         <td style="white-space:nowrap">
           <button class="btn btn-secondary btn-sm" onclick="editBankEntry(${r.rowIndex})" style="font-size:11px;padding:4px 8px">✏️</button>
@@ -3401,6 +3495,19 @@ function renderBankTab(){
   }
 }
 
+const ymdOf = v => { if(!v) return ''; const s=String(v); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d=new Date(s); return isNaN(d) ? s : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
+async function bankToggleDone(rowIndex, on, el){
+  const r=(S.bankData||[]).find(d=>d.rowIndex===rowIndex); if(!r) return;
+  const status = on ? '送金済み' : '未送金';
+  const payload={ name:r.name, type:r.type, status, bankName:r.bankName||'', branchName:r.branchName||'', accountType:r.accountType||'普通', accountNumber:r.accountNumber||'', accountHolder:r.accountHolder||'',
+    transferAmount:r.transferAmount, rewardAmount:r.rewardAmount, selfReward:r.selfReward, directReward:r.directReward, indirectReward:r.indirectReward, pcFee:r.pcFee||0,
+    transferDate:ymdOf(r.transferDate), referrer:r.referrer||'', note:r.note||'', rowIndex };
+  if(el) el.disabled=true;
+  try{ const res=await gasPost('updateBankTransfer', payload);
+    if(res && res.success){ r.status=status; renderBankTab(); try{ renderHistoryTab(); }catch(e){} }
+    else { alert('更新できませんでした：'+((res&&res.error)||'不明')); if(el){ el.checked=!on; el.disabled=false; } } }
+  catch(e){ alert('通信エラー：'+e.message); if(el){ el.checked=!on; el.disabled=false; } }
+}
 function updateBankRates(){
   const type=document.getElementById('bank-type')?.value||'資金提供';
   const reward=parseFloat(document.getElementById('bank-reward-amount')?.value)||0;
@@ -4404,15 +4511,16 @@ function renderFunderRewards(){
   const months = partnerTableMonths('funder');
   const res=funderRewards(months);
   const list=(FUNDERS.list||[]);
-  if(!list.length){ tb.innerHTML='<tr class="empty"><td colspan="5">資金提供者を登録してください</td></tr>'; return; }
+  SEL_VIS.funder=list.map(f=>f.name); selUpdate('funder');
+  if(!list.length){ tb.innerHTML='<tr class="empty"><td colspan="6">資金提供者を登録してください</td></tr>'; return; }
   const mJs=JSON.stringify(months).replace(/"/g,'&quot;');
   tb.innerHTML = list.map(f=>{ const o=res[f.name]||{total:0,users:{}};
     const det=Object.entries(o.users).map(([u,v])=>`${escH(u)}（¥${fmt(v.profit)} → <span style="color:#ec4899">¥${fmt(v.amount)}</span>）`).join('<br>');
-    return `<tr><td>${escH(f.name)}</td><td style="font-size:12px;color:${f.type==='socialnavi'?'var(--gold)':'#ec4899'}">${f.type==='socialnavi'?'SocialNavi':'個人'}</td>
+    return `<tr><td>${selBox('funder', f.name)}</td><td>${escH(f.name)}</td><td style="font-size:12px;color:${f.type==='socialnavi'?'var(--gold)':'#ec4899'}">${f.type==='socialnavi'?'SocialNavi':'個人'}</td>
       <td style="font-size:11.5px;color:var(--dim);line-height:1.8">${det||'<span style="color:var(--muted)">—</span>'}</td>
       <td class="mn" style="text-align:right;color:#ec4899;font-weight:600">¥${fmt(o.total)}</td>
       <td><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenPartner('funder', ${JSON.stringify(f.name).replace(/"/g,'&quot;')}, ${mJs})">🧾 明細</button></td></tr>`; }).join('')
-    + `<tr class="tot"><td colspan="3">合計（${periodLabelOf(months)}）</td><td class="mn" style="text-align:right">¥${fmt(Object.values(res).reduce((a,o)=>a+o.total,0))}</td><td></td></tr>`;
+    + `<tr class="tot"><td></td><td colspan="3">合計（${periodLabelOf(months)}）</td><td class="mn" style="text-align:right">¥${fmt(Object.values(res).reduce((a,o)=>a+o.total,0))}</td><td></td></tr>`;
 }
 
 function netMsg(msg, type) {
@@ -4440,14 +4548,15 @@ function renderReferrerRewards(){
   Object.keys(PAID.ref||{}).forEach(n=>{ if(!out[n]) out[n]={direct:0, indirect:0, from:{}}; });
   Object.entries(out).forEach(([n,o])=>{ o.sf=shortfallFor('ref', n, months); });
   const rows=Object.entries(out).filter(([,o])=>o.direct+o.indirect>0||o.sf.amount>0).sort((a,b)=>(b[1].direct+b[1].indirect)-(a[1].direct+a[1].indirect));
-  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="6">この期間の紹介報酬はありません</td></tr>'; return; }
+  SEL_VIS.ref=rows.map(([n])=>n); selUpdate('ref');
+  if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="7">この期間の紹介報酬はありません</td></tr>'; return; }
   const mJs=JSON.stringify(months).replace(/"/g,'&quot;');
-  tb.innerHTML = rows.map(([n,o])=>`<tr><td>${escH(n)}${isClientName(n)?'':' <span style="font-size:10px;color:var(--muted)">外部</span>'}</td>
+  tb.innerHTML = rows.map(([n,o])=>`<tr><td>${selBox('ref', n)}</td><td>${escH(n)}${isClientName(n)?'':' <span style="font-size:10px;color:var(--muted)">外部</span>'}</td>
     <td class="mn" style="text-align:right;color:#a5c4ff">¥${fmt(o.direct)}</td><td class="mn" style="text-align:right;color:#a5c4ff">¥${fmt(o.indirect)}</td>
     <td class="mn" style="text-align:right;font-weight:600">¥${fmt(o.direct+o.indirect)}${o.sf.amount?`<div style="font-size:10.5px;color:var(--gold);font-weight:500" title="${escH(o.sf.label)}">＋不足 ¥${fmt(o.sf.amount)}</div>`:''}</td>
     <td style="font-size:11px;color:var(--dim);line-height:1.7">${Object.entries(o.from).map(([u,v])=>`${escH(u)}（${v.direct?'直 ¥'+fmt(v.direct):''}${v.direct&&v.indirect?' / ':''}${v.indirect?'間 ¥'+fmt(v.indirect):''}）`).join('<br>')}</td>
     <td><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenPartner('ref', ${JSON.stringify(n).replace(/"/g,'&quot;')}, ${mJs})">🧾 明細</button></td></tr>`).join('')
-    + `<tr class="tot"><td>合計（${periodLabelOf(months)}）</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.indirect,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct+o.indirect,0))}</td><td></td><td></td></tr>`;
+    + `<tr class="tot"><td></td><td>合計（${periodLabelOf(months)}）</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.indirect,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct+o.indirect,0))}</td><td></td><td></td></tr>`;
 }
 function renderNetworkTab() {
   try { renderFunderList(); renderNetFunderRows(); renderFunderRewards(); renderReferrerRewards(); } catch(e) { console.warn(e); }
@@ -4655,8 +4764,17 @@ function paidHistRows(){
   });
   return out;
 }
+// 支払い管理で「送金済み」になったものを清算履歴の行にする
+function bankHistRows(){
+  return (S.bankData||[]).filter(r=>r.status==='送金済み').map(r=>{ const d=ymdOf(r.transferDate);
+    const isRef=r.type==='紹介者報酬', isFunder=r.type==='資金提供者報酬';
+    return { _bank:true, ym:d.slice(0,7), date:d, user:r.name, type:r.type, period:r.note||'', profit:isRef||isFunder?0:(+r.rewardAmount||0),
+      user_reward:isRef||isFunder?0:(+r.selfReward||0), ref1_reward:isRef?(+r.directReward||+r.rewardAmount||0):0, ref2_reward:isRef?(+r.indirectReward||0):0, funder:isFunder?(+r.rewardAmount||0):0,
+      transfer:+r.transferAmount||0 }; });
+}
 function renderHistoryTab() {
-  const arr = [...histLoad(), ...paidHistRows()].sort((a,b)=>String(b.ym||'').localeCompare(String(a.ym||'')));
+  if(!renderHistoryTab._bankTried && !(S.bankData||[]).length && typeof gasGet==='function'){ renderHistoryTab._bankTried=true; gasGet('getBankTransfers').then(j=>{ const d=(j&&(j.data||j))||[]; if(Array.isArray(d)&&d.length){ S.bankData=d; renderHistoryTab(); } }).catch(()=>{}); }
+  const arr = [...histLoad(), ...paidHistRows(), ...bankHistRows()].sort((a,b)=>String(b.ym||'').localeCompare(String(a.ym||'')));
   const filterYear = document.getElementById('hist-filter-year')?.value||'';
   const filterMonth = document.getElementById('hist-filter-month')?.value||'';
 
@@ -4693,6 +4811,21 @@ function renderHistoryTab() {
     tbody.innerHTML = filtered.map(r=>{
       const [ry,rm] = (r.ym||'').split('-');
       const ymLbl = ry&&rm ? `${ry}年${parseInt(rm)}月` : '—';
+      if (r._bank){
+        const y2=v=>'¥'+fmt(v);
+        return `<tr>
+        <td style="font-family:var(--mono);font-size:12px;white-space:nowrap">${escH(r.date||ymLbl)}</td>
+        <td style="font-weight:500;white-space:nowrap">${escH(r.user)}</td>
+        <td style="font-size:12px;white-space:nowrap">${escH(r.type||'')}<div style="font-size:10px;color:var(--green)">✅ 送金済み</div></td>
+        <td style="font-size:11.5px;color:var(--muted)">${escH(r.period)}</td>
+        <td class="mn" style="font-size:12px">${r.profit?y2(r.profit):'—'}</td>
+        <td class="mn" style="color:var(--blue);font-weight:600">${r.user_reward?y2(r.user_reward):(r.funder?`<span style="color:#ec4899">${y2(r.funder)}</span>`:'—')}</td>
+        <td class="mn" style="color:#a5c4ff;font-size:12px">${r.ref1_reward?y2(r.ref1_reward):'—'}</td>
+        <td class="mn" style="color:#a5c4ff;font-size:12px">${r.ref2_reward?y2(r.ref2_reward):'—'}</td>
+        <td style="font-size:11.5px;color:var(--muted)">振込 ${y2(r.transfer)}</td>
+        <td></td>
+      </tr>`;
+      }
       if (r._paid){
         const J=x=>JSON.stringify(x).replace(/"/g,'&quot;'), y2=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
         const det=[`振込 ¥${fmt(r.paid)}`, r.exp?`経費 ¥${fmt(r.exp)}`:'', r.oth?`その他 ¥${fmt(r.oth)}${r.memo?'（'+escH(r.memo)+'）':''}`:''].filter(Boolean).join('・');
