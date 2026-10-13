@@ -7,7 +7,7 @@
 // 👥 グループ設定（画面右上で切り替え）
 //   設定（報酬率・紹介者・資金提供者など）はグループごとに分けてブラウザに保存
 // ================================================================
-window.GROUPS = {
+window.GROUPS = {h
   g1: { name:'第1グループ',
         sales:'1F07O3cwj7SlqEQKz5sz7L81vEiEqHKmM8Czg1cxHIAs', salesSheet:'鈴村年間収支表',
         client:'1nVhHCSLQLtkWZQ-cBYHEGL1qYyqfBKjYIX2uPySQQ2c', clientSheet:'運用状況',
@@ -2358,7 +2358,7 @@ async function registerPartnerPayments(kind, opts={}){
   let msg=`${label}の${PARTNER_LABEL[kind]}を支払い管理に登録します。\n\n${list.length}名・合計 ¥${fmt(sum)}${sfSum?`\nうち前回までの不足分 ¥${fmt(sfSum)} を上乗せ`:''}\n振込予定日：${payDate}\n\n`+list.slice(0,12).map(([n,o])=>`・${n}　¥${fmt(o.total+o.sf.amount)}${o.sf.amount?`（不足分 ¥${fmt(o.sf.amount)} 含む）`:''}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
   if(dup.length) msg+=`\n\n⚠ すでに登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
   if(!opts.noConfirm && !confirm(msg+'\n\n登録しますか？')) return;
-  showLoad('登録中...'); let ok=0, fail=0;
+  showLoad('登録中...'); let ok=0, fail=0, failDetails=[];
   for(const [n,o] of list){
     const cl=(S.clients||{})[n]||{};
     const users=[...new Set(o.rows.map(r=>r.user))];
@@ -2368,11 +2368,11 @@ async function registerPartnerPayments(kind, opts={}){
       directReward: kind==='ref' ? o.direct+o.extra : 0, indirectReward: kind==='ref' ? o.indirect : 0,
       pcFee:0, transferAmount:o.total+o.sf.amount, transferDate:payDate, referrer:'', status:'未送金',
       note:`${label} ${PARTNER_LABEL[kind]}${users.length?`（${users.slice(0,6).join('・')}${users.length>6?' ほか':''}）`:''}`+(o.sf.amount?`＋${o.sf.label} ¥${fmt(o.sf.amount)}`:'') };
-    try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(n)]=new Date().toISOString(); if(o.sf.amount) shortfallMark(kind, n, o.sf, payDate); } else fail++; }catch(e){ fail++; }
+    try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(n)]=new Date().toISOString(); if(o.sf.amount) shortfallMark(kind, n, o.sf, payDate); } else { fail++; failDetails.push('・'+n+'：'+(res&&res.error||'登録失敗')); } }catch(e){ fail++; failDetails.push('・'+n+'：'+(e.message||'通信エラー')); }
   }
   lsSet(PAYREG_KEY, reg); hideLoad();
-  if(opts.noConfirm) return {ok, fail};
-  alert(`登録完了：${ok}件 / 失敗：${fail}件`);
+  if(opts.noConfirm) return {ok, fail, failDetails};
+  alert(`登録完了：${ok}件 / 失敗：${fail}件`+(failDetails.length?'\n\n失敗した登録：\n'+failDetails.join('\n'):''));
   if(ok>0){ sw('payment'); loadBankTransfers(); }
 }
 
@@ -2742,7 +2742,7 @@ async function bulkPdfAndRegister(kind){
   hideLoad();
   const only=new Set(items.map(x=>x.name));
   const res = kind==='client' ? await registerClientPayments({only, noConfirm:true}) : await registerPartnerPayments(kind, {only, noConfirm:true});
-  alert(`📦 PDF：${ok}件をZIPでダウンロードしました\n💳 支払い管理（未送金）に登録：${(res||{}).ok||0}件`+((res||{}).fail?` / 失敗 ${res.fail}件`:'')+(errs.length?`\n\n作れなかった明細：\n${errs.join('\n')}`:'')+'\n\n送金したら 💳 支払い管理で「送金済み」に✅を入れてください（📒 清算履歴に載ります）');
+  alert(`📦 PDF：${ok}件をZIPでダウンロードしました\n💳 支払い管理（未送金）に登録：${(res||{}).ok||0}件`+((res||{}).fail?` / 失敗 ${res.fail}件`:'')+((res||{}).failDetails&&res.failDetails.length?`\n\n失敗した登録：\n${res.failDetails.join('\n')}`:'')+( errs.length?`\n\n作れなかった明細：\n${errs.join('\n')}`:'')+'\n\n送金したら 💳 支払い管理で「送金済み」に✅を入れてください（📒 清算履歴に載ります）');
   if((res||{}).ok){ sw('payment'); loadBankTransfers(); }
 }
 // 明細を期間付きで開く
@@ -2775,7 +2775,7 @@ async function registerClientPayments(opts={}){
   if(notYet.length) msg+=`\n\n⏳ 期間がまだ終わっていないので今回は登録しません：${notYet.join('、')}`;
   if(dup.length) msg+=`\n\n⚠ すでに同じ期間で登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
   if(!opts.noConfirm && !confirm(msg+'\n\n登録しますか？')) return;
-  showLoad('登録中...'); let ok=0, fail=0;
+  showLoad('登録中...'); let ok=0, fail=0, failDetails=[];
   for(const r of list){
     const cl=(S.clients||{})[r.name]||{}, lb=[...r.labels], label=periodLabelOf(r.months);
     const payload={ name:r.name, type: lb.length>1 ? '混合' : (r.rates._src==='own'?'自己資金':r.rates._src==='fund'?'資金提供':rateLabel(r.rates)),
@@ -2783,11 +2783,11 @@ async function registerClientPayments(opts={}){
       rewardAmount:r.profit, selfReward:r.user, directReward:r.refDirect, indirectReward:r.refIndirect,
       pcFee:0, transferAmount:r.user+r.sf.amount+addFee, transferDate:payDateOf(r.months), referrer:getRefs(r.name).ref1||'', status:'未送金',
       note:`${label} 本人報酬`+(r.sf.amount?`＋${r.sf.label} ¥${fmt(r.sf.amount)}`:'') };
-    try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(r)]=new Date().toISOString(); if(r.sf.amount) shortfallMark('client', r.name, r.sf, payDateOf(r.months)); } else fail++; }catch(e){ fail++; }
+    try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(r)]=new Date().toISOString(); if(r.sf.amount) shortfallMark('client', r.name, r.sf, payDateOf(r.months)); } else { fail++; failDetails.push('・'+r.name+'：'+(res&&res.error||'登録失敗')); } }catch(e){ fail++; failDetails.push('・'+r.name+'：'+(e.message||'通信エラー')); }
   }
   lsSet(PAYREG_KEY, reg); hideLoad();
-  if(opts.noConfirm) return {ok, fail};
-  alert(`登録完了：${ok}件 / 失敗：${fail}件`);
+  if(opts.noConfirm) return {ok, fail, failDetails};
+  alert(`登録完了：${ok}件 / 失敗：${fail}件`+(failDetails.length?'\n\n失敗した登録：\n'+failDetails.join('\n'):''));
   if(ok>0){ sw('payment'); loadBankTransfers(); }
 }
 
