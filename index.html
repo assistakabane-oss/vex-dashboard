@@ -3519,7 +3519,7 @@ function renderBankTab(){
         <td class="mn">${d.count}件</td>
         <td class="mn" style="color:var(--green)">¥${fmt(d.direct)}</td>
         <td class="mn" style="color:var(--gold)">¥${fmt(d.indirect)}</td>
-        <td class="mn gd">¥${fmt(d.transfer)}</td>
+        <td class="mn gd">¥${fmt(d.direct+d.indirect)}</td>
       </tr>`;
     }).join('');
   }
