@@ -3579,7 +3579,7 @@ function renderBankTab(){
     const detItems=[];
     if(r.transferDate){const _td=new Date(r.transferDate);const _ds=isNaN(_td)?r.transferDate:`${_td.getFullYear()}/${String(_td.getMonth()+1).padStart(2,'0')}/${String(_td.getDate()).padStart(2,'0')}`;detItems.push(`<div><span style="color:var(--muted)">振込予定日：</span>${_ds}</div>`);}
     if(bankShort) detItems.push(`<div><span style="color:var(--muted)">銀行情報：</span>${bankShort}${_bh?' ('+_bh+')':''}</div>`);
-    if(parseFloat(r.selfReward) && r.name){
+    if(parseFloat(r.selfReward) && r.name && r.type !== '紹介者報酬'){
       const _mbr=(S.members||[]).find(m=>normName(m.name||'')=== normName(r.name||''));
       if(_mbr){
         const _nm=r.note&&r.note.match(/(\d{4})年/);
