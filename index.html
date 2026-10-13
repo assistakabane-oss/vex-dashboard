@@ -3497,14 +3497,15 @@ function renderBankTab(){
     }).join('');
   }
 
-  // 紹介者別サマリー
+  // 紹介者別サマリー（紹介者報酬タイプの行をname軸で集計）
   const refMap={};
   (S.bankData||[]).forEach(r=>{
-    if(!r.referrer) return;
-    if(!refMap[r.referrer]) refMap[r.referrer]={count:0,direct:0,indirect:0};
-    refMap[r.referrer].count++;
-    refMap[r.referrer].direct+=parseFloat(r.directReward)||0;
-    refMap[r.referrer].indirect+=parseFloat(r.indirectReward)||0;
+    if(r.type !== '紹介者報酬') return;
+    if(!refMap[r.name]) refMap[r.name]={count:0,direct:0,indirect:0,transfer:0};
+    refMap[r.name].count++;
+    refMap[r.name].direct+=parseFloat(r.directReward)||0;
+    refMap[r.name].indirect+=parseFloat(r.indirectReward)||0;
+    refMap[r.name].transfer+=parseFloat(r.transferAmount)||0;
   });
   const refTbody=document.getElementById('ref-summary-tbody');
   const entries=Object.entries(refMap);
@@ -3515,10 +3516,10 @@ function renderBankTab(){
       const col=COLORS[i%COLORS.length];
       return`<tr>
         <td><div class="mc"><div class="av" style="background:${col}22;color:${col};width:26px;height:26px;font-size:11px">${name[0]}</div>${name}</div></td>
-        <td class="mn">${d.count}名</td>
+        <td class="mn">${d.count}件</td>
         <td class="mn" style="color:var(--green)">¥${fmt(d.direct)}</td>
         <td class="mn" style="color:var(--gold)">¥${fmt(d.indirect)}</td>
-        <td class="mn gd">¥${fmt(d.direct+d.indirect)}</td>
+        <td class="mn gd">¥${fmt(d.transfer)}</td>
       </tr>`;
     }).join('');
   }
