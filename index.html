@@ -13,6 +13,7 @@ window.GROUPS = {
         client:'1nVhHCSLQLtkWZQ-cBYHEGL1qYyqfBKjYIX2uPySQQ2c', clientSheet:'運用状況',
         payment:'1PhCM_xXwsDqFRcABHXeWVM1LZ7NkZt2PuPvxj6HGPcw', paymentSheet:'銀行送金',
         vex:'161CoqauS6weOsIIkqRTrIaDZ5qrDzI5cZr62q2v4hkk', vexSheet:'VEX準備状況v2',
+        bankInfo:'1Icorg-xlSvYp-Sgpo_7iVsmp5uxBuy1ftsmwIlCz6o4', bankInfoSheet:'支払額＆銀行情報',
         ops:['中野','中原','種田','松村','小川','後藤'],
         gas:'https://script.google.com/macros/s/AKfycbxOC23h189OZE6g28iddbiSUY17zQCyJSWqgi-wsZRjohSONoDUxgRa1ipYraXZJ3tt/exec' },
   furuichi: { name:'古市グループ',
@@ -2952,10 +2953,12 @@ const SALES_ID=GROUP_CONF.sales;
 const CLIENT_ID=GROUP_CONF.client;
 const PAYMENT_ID=GROUP_CONF.payment;
 const VEX_STATUS_ID=GROUP_CONF.vex;
+const BANK_INFO_ID=GROUP_CONF.bankInfo||'';
 const SALES_SHEET=GROUP_CONF.salesSheet;
 const CLIENT_SHEET=GROUP_CONF.clientSheet;
 const PAYMENT_SHEET=GROUP_CONF.paymentSheet;
 const VEX_STATUS_SHEET=GROUP_CONF.vexSheet;
+const BANK_INFO_SHEET=GROUP_CONF.bankInfoSheet||'支払額＆銀行情報';
 // 運営チームメンバー（固定）
 const OPS_TEAM = GROUP_CONF.ops;
 const COL_MAP={};
@@ -3048,6 +3051,39 @@ function parseClients(values){
   return clients;
 }
 
+// 銀行情報シートをパースして {正規化名: {bank,branch,accountType,accountNumber,accountHolder}} を返す
+// 列: 0=No, 1=氏名, 2=振込金額, 3=銀行名, 4=支店名, 5=口座種別, 6=口座番号, 7=口座名義
+function parseBankInfo(values){
+  const out={};
+  if(!values||!values.length) return out;
+  for(let ri=1;ri<values.length;ri++){
+    const row=values[ri]||[];
+    const rawName=(row[1]||'').toString().trim();
+    if(!rawName||rawName==='氏名') continue;
+    const bank=(row[3]||'').toString().trim();
+    if(!bank) continue;
+    const key=rawName.replace(/[\s　]/g,''); // スペース除去で正規化
+    out[key]={
+      bank,
+      branch:(row[4]||'').toString().trim(),
+      accountType:(row[5]||'').toString().trim()||'普通',
+      accountNumber:(row[6]||'').toString().trim(),
+      accountHolder:(row[7]||'').toString().trim()
+    };
+    // スペースあり版も登録（どちらでもヒットするよう）
+    if(rawName!==key) out[rawName]=out[key];
+  }
+  return out;
+}
+
+// 銀行情報をS.clientsにマージ
+function mergeBankInfo(bankMap){
+  if(!bankMap||!S.clients) return;
+  Object.entries(bankMap).forEach(([k,v])=>{
+    if(S.clients[k]) Object.assign(S.clients[k], v);
+  });
+}
+
 async function connect(){
   const keyEl=document.getElementById('ikey');
   const key=(keyEl?keyEl.value:'').trim()||EMBEDDED_API_KEY;
@@ -3057,9 +3093,12 @@ async function connect(){
   if(btnConn) btnConn.disabled=true;
   showLoad('スプレッドシートに接続中...');
   try{
-    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)]);
+    const fetches=[sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)];
+    if(BANK_INFO_ID) fetches.push(sheetsAPI(BANK_INFO_ID,`${BANK_INFO_SHEET}!A1:H200`).catch(()=>[]));
+    const[sv,cv,bv]=await Promise.all(fetches);
     S.members=parseSales(sv);
     S.clients=parseClients(cv);
+    if(bv) mergeBankInfo(parseBankInfo(bv));
     if(!S.members.length) throw new Error('メンバーデータが取得できませんでした。\nスプレッドシートを「リンクを知っている全員が閲覧可能」に設定してください。');
     const years=new Set();
     S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
@@ -3083,9 +3122,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   S.apiKey = EMBEDDED_API_KEY;
   showLoad('接続中...');
   try{
-    const[sv,cv]=await Promise.all([sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)]);
+    const fetches=[sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)];
+    if(BANK_INFO_ID) fetches.push(sheetsAPI(BANK_INFO_ID,`${BANK_INFO_SHEET}!A1:H200`).catch(()=>[]));
+    const[sv,cv,bv]=await Promise.all(fetches);
     S.members=parseSales(sv);
     S.clients=parseClients(cv);
+    if(bv) mergeBankInfo(parseBankInfo(bv));
     if(!S.members.length) throw new Error('データなし');
     const years=new Set();
     S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
