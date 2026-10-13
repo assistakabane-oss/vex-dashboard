@@ -922,6 +922,34 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
       </div>
 
+      <!-- 紹介者報酬テーブル（下部に分離） -->
+      <div class="tbl-card" id="ref-payment-section" style="margin-top:22px">
+        <div class="tbl-hdr">
+          <div class="tbl-ttl">🕸️ 紹介者報酬</div>
+          <div class="tbl-sub" id="ref-payment-count">0件</div>
+        </div>
+        <div style="overflow-x:auto">
+          <table style="min-width:1100px">
+            <thead><tr>
+              <th style="width:36px"></th>
+              <th>タイプ</th>
+              <th>名前</th>
+              <th>銀行情報</th>
+              <th>振込額</th>
+              <th style="background:rgba(52,199,138,.08);color:#34c78a">直紹介合計</th>
+              <th style="background:rgba(232,168,74,.08);color:#e8a84a">間接紹介合計</th>
+              <th>振込予定日</th>
+              <th>紹介者</th>
+              <th>ステータス</th>
+              <th>備考</th>
+              <th>操作</th>
+            </tr></thead>
+            <tbody id="ref-payment-tbody">
+              <tr class="empty"><td colspan="12">紹介者報酬なし</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
     </div>
 
@@ -3547,40 +3575,57 @@ function renderBankTab(){
   document.getElementById('pay-total').textContent='¥'+fmt((S.bankData||[]).reduce((s,r)=>s+(parseFloat(r.transferAmount)||0),0));
   document.getElementById('pay-reward-total').textContent='¥'+fmt((S.bankData||[]).reduce((s,r)=>s+(parseFloat(r.rewardAmount)||0),0));
   document.getElementById('payment-count').textContent=filtered.length+'件';
+  // 紹介者報酬と本人報酬を分ける
+  const isRef = r => r.type === '紹介者報酬';
+  const filteredMain = filtered.filter(r => !isRef(r));
+  const filteredRef  = filtered.filter(r => isRef(r));
+
+  function rowHtml(r){
+    const isOwn=r.type==='自己資金';
+    const tc = r.type==='紹介者報酬' ? 'var(--green)' : r.type==='資金提供者報酬' ? '#a855f7' : isOwn ? 'var(--green)' : 'var(--blue)';
+    const isDone=r.status==='送金済み';
+    const _cn=normName(r.name||''); const _cli=(S.clients&&S.clients[_cn])||{};
+    const _bn=r.bankName||_cli.bank||''; const _br=r.branchName||_cli.branch||''; const _bt=r.accountType||_cli.accountType||''; const _bno=r.accountNumber||_cli.accountNumber||''; const _bh=r.accountHolder||_cli.accountHolder||'';
+    const bankShort=[_bn,_br,_bt,_bno].filter(Boolean).join(' / ');
+    return`<tr>
+      <td style="text-align:center"><input type="checkbox" class="bank-row-sel" data-idx="${r.rowIndex}" onchange="bankSelChange()" style="accent-color:#e05252;cursor:pointer"/></td>
+      <td><span class="rb" style="background:${tc}22;color:${tc};font-size:11px">${r.type||'—'}</span></td>
+      <td style="font-weight:500">${r.name||'—'}</td>
+      <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:normal;line-height:1.5">${bankShort||'—'}<br><span style="color:var(--dim)">${_bh}</span></td>
+      <td class="mn" style="color:var(--gold);font-weight:600">¥${fmt(parseFloat(r.transferAmount)||0)}</td>
+      <td class="mn" style="color:var(--green);font-size:12px">¥${fmt(parseFloat(r.directReward)||0)}</td>
+      <td class="mn" style="color:var(--gold);font-size:12px">¥${fmt(parseFloat(r.indirectReward)||0)}</td>
+      <td style="font-size:12px;color:var(--muted)">${r.transferDate||'—'}</td>
+      <td style="font-size:12px">${r.referrer||'—'}</td>
+      <td style="white-space:nowrap"><label style="display:flex;gap:5px;align-items:center;cursor:pointer;font-size:11.5px;color:${isDone?'var(--green)':'var(--gold)'}"><input type="checkbox" ${isDone?'checked':''} onchange="bankToggleDone(${r.rowIndex}, this.checked, this)" style="width:auto;accent-color:#34c78a"/>${isDone?'送金済み':'未送金'}</label></td>
+      <td style="font-size:11px;color:var(--muted);max-width:120px">${r.note||'—'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-secondary btn-sm" onclick="editBankEntry(${r.rowIndex})" style="font-size:11px;padding:4px 8px">✏️</button>
+      </td>
+    </tr>`;
+  }
 
   const tbody=document.getElementById('payment-tbody');
   // 全選択チェックをリセット
   const selAll=document.getElementById('bank-sel-all'); if(selAll) selAll.checked=false;
   document.getElementById('bank-bulk-delete-btn').style.display='none';
-  if(!filtered.length){
+  if(!filteredMain.length){
     tbody.innerHTML='<tr class="empty"><td colspan="12">データなし</td></tr>';
   } else {
-    tbody.innerHTML=filtered.map(r=>{
-      const isOwn=r.type==='自己資金';
-      const tc=isOwn?'var(--green)':'var(--blue)';
-      const isDone=r.status==='送金済み';
-      const _cn=normName(r.name||''); const _cli=(S.clients&&S.clients[_cn])||{};
-      const _bn=r.bankName||_cli.bank||''; const _br=r.branchName||_cli.branch||''; const _bt=r.accountType||_cli.accountType||''; const _bno=r.accountNumber||_cli.accountNumber||''; const _bh=r.accountHolder||_cli.accountHolder||'';
-      const bankShort=[_bn,_br,_bt,_bno].filter(Boolean).join(' / ');
-      return`<tr>
-        <td style="text-align:center"><input type="checkbox" class="bank-row-sel" data-idx="${r.rowIndex}" onchange="bankSelChange()" style="accent-color:#e05252;cursor:pointer"/></td>
-        <td><span class="rb" style="background:${tc}22;color:${tc};font-size:11px">${r.type||'—'}</span></td>
-        <td style="font-weight:500">${r.name||'—'}</td>
-        <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:normal;line-height:1.5">${bankShort||'—'}<br><span style="color:var(--dim)">${_bh}</span></td>
-        <td class="mn" style="color:var(--gold);font-weight:600">¥${fmt(parseFloat(r.transferAmount)||0)}</td>
-        <td class="mn" style="color:var(--green);font-size:12px">¥${fmt(parseFloat(r.directReward)||0)}</td>
-        <td class="mn" style="color:var(--gold);font-size:12px">¥${fmt(parseFloat(r.indirectReward)||0)}</td>
-        <td style="font-size:12px;color:var(--muted)">${r.transferDate||'—'}</td>
-        <td style="font-size:12px">${r.referrer||'—'}</td>
-        <td style="white-space:nowrap"><label style="display:flex;gap:5px;align-items:center;cursor:pointer;font-size:11.5px;color:${isDone?'var(--green)':'var(--gold)'}"><input type="checkbox" ${isDone?'checked':''} onchange="bankToggleDone(${r.rowIndex}, this.checked, this)" style="width:auto;accent-color:#34c78a"/>${isDone?'送金済み':'未送金'}</label></td>
-        <td style="font-size:11px;color:var(--muted);max-width:120px">${r.note||'—'}</td>
-        <td style="white-space:nowrap">
-          <button class="btn btn-secondary btn-sm" onclick="editBankEntry(${r.rowIndex})" style="font-size:11px;padding:4px 8px">✏️</button>
-        </td>
-      </tr>`;
-    }).join('');
+    tbody.innerHTML=filteredMain.map(rowHtml).join('');
   }
 
+  // 紹介者報酬テーブル
+  const refTbody=document.getElementById('ref-payment-tbody');
+  const refSection=document.getElementById('ref-payment-section');
+  const refCount=document.getElementById('ref-payment-count');
+  if(refTbody){
+    if(refCount) refCount.textContent=filteredRef.length+'件';
+    if(refSection) refSection.style.display = '';
+    refTbody.innerHTML = filteredRef.length
+      ? filteredRef.map(rowHtml).join('')
+      : '<tr class="empty"><td colspan="12">紹介者報酬なし</td></tr>';
+  }
 }
 
 const ymdOf = v => { if(!v) return ''; const s=String(v); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d=new Date(s); return isNaN(d) ? s : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
