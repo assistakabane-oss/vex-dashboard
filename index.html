@@ -4588,7 +4588,7 @@ function renderReferrerRewards(){
       Object.entries(refPayouts(m.name, refDirect, refIndirect)).forEach(([n,v])=>{
         const o=out[n]=out[n]||{direct:0, indirect:0, entries:[]};
         o.direct+=v.direct+v.extra; o.indirect+=v.indirect;
-        if(v.direct+v.extra+v.indirect) const _rref1=_f2.refs1.find(r=>r.name===n); const _rref2=(_f2.refs2||[]).find(r=>r.name===n);
+        const _rref1=_f2.refs1.find(r=>r.name===n); const _rref2=(_f2.refs2||[]).find(r=>r.name===n);
         const _dr1=(_rref1?.pct!=null?_rref1.pct:fixRef1)+(v.extra>0?fixRef2:0);
         const _dr2=_rref2?.pct!=null?_rref2.pct:fixRef2;
         o.entries.push({year, month, user:m.name, profit, direct:v.direct+v.extra, indirect:v.indirect, r1:_dr1, r2:_dr2});
