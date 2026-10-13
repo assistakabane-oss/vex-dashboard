@@ -95,6 +95,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .alert-success{background:rgba(52,199,138,.1);border:1px solid rgba(52,199,138,.3);color:var(--green)}
 .alert-info   {background:var(--blue-dim);border:1px solid rgba(74,140,255,.25);color:#a5c4ff}
 .hidden{display:none!important}
+.sens-col{display:none!important}
+body.sens-show .sens-col{display:table-cell!important}
 #app{display:none}
 header{background:rgba(8,11,18,.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100}
 .hdr{max-width:1320px;margin:0 auto;padding:0 24px;height:58px;display:flex;align-items:center;justify-content:space-between}
@@ -367,6 +369,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div class="tbl-hdr">
             <div class="tbl-ttl">💳 清算・支払い（売上シートから自動計算）<span id="cs-period" style="font-size:12px;color:var(--muted);margin-left:8px"></span></div>
             <div class="tbl-sub" id="cs-count">0名</div>
+              <button onclick="toggleSensitive()" id="sens-toggle-btn" title="運営・リスク管理の列を表示/非表示" style="background:transparent;border:none;cursor:pointer;font-size:13px;color:var(--muted);padding:2px 5px;border-radius:4px;opacity:.4;transition:opacity .2s">🔒</button>
           </div>
           <div id="lock-status" style="font-size:12px;padding:0 20px 6px"></div>
           <p style="font-size:12px;color:var(--muted);padding:0 20px 8px">期間内の各月の利益と、その月の割合・プラン・個別率で計算して合計します。紹介者・資金提供者への支払いは 🕸️ 紹介ネットワーク画面から登録します。</p>
@@ -377,7 +380,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
                 <th style="text-align:right;color:var(--blue)">本人報酬</th>
                 <th style="text-align:right;color:#a5c4ff">直紹介</th><th style="text-align:right;color:#a5c4ff">間接紹介</th>
                 <th style="text-align:right;color:#ec4899">資金提供者</th>
-                <th style="text-align:right;color:var(--gold)">運営</th><th style="text-align:right;color:var(--green)">リスク管理</th>
+                <th class="sens-col" style="text-align:right;color:var(--gold)">運営</th><th class="sens-col" style="text-align:right;color:var(--green)">リスク管理</th>
                 <th>紹介者</th><th></th>
               </tr></thead>
               <tbody id="cs-tbody"><tr class="empty"><td colspan="12">データを読み込んでください</td></tr></tbody>
@@ -1611,6 +1614,35 @@ function rateBadge(r, withUser=true){
   const c = rateColor(r);
   return `<span class="rb" style="background:${c}22;color:${c}">${rateLabel(r)}${withUser?' '+pctTxt(r.user):''}</span>`;
 }
+function renderDistBar(rt){
+  if(!rt) return '';
+  const user=rt.user||0, ref1=rt.ref1||0, ref2=rt.ref2||0, funder=rt.funder||0;
+  const ops=rt.ops||0, risk=rt.risk||0;
+  const hidden=ops+risk;
+  const segments=[
+    {k:'user',label:'本人報酬',pct:user,color:'var(--blue)'},
+    {k:'ref1',label:'直紹介',pct:ref1,color:'#a5c4ff'},
+    {k:'ref2',label:'間接紹介',pct:ref2,color:'#7ea8ff'},
+    {k:'funder',label:'資金提供者',pct:funder,color:'#ec4899'},
+    {k:'hidden',label:'その他',pct:hidden,color:'#333'},
+  ].filter(s=>s.pct>0);
+  const fmt1=v=>(v*100).toFixed(1)+'%';
+  return `<div style="margin:10px 0 4px">
+    <div style="display:flex;height:16px;border-radius:4px;overflow:hidden;gap:1px">
+      ${segments.map(s=>`<div style="flex:${s.pct};background:${s.color}" title="${s.label} ${fmt1(s.pct)}"></div>`).join('')}
+    </div>
+    <div style="display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font-size:11px">
+      ${segments.filter(s=>s.k!=='hidden').map(s=>`<span style="color:${s.color}">■ ${s.label} ${fmt1(s.pct)}</span>`).join('')}
+      <span style="color:var(--muted)">■ その他 ${fmt1(hidden)}</span>
+    </div>
+  </div>`;
+}
+function toggleSensitive(){
+  const show = document.body.classList.toggle('sens-show');
+  try{ localStorage.setItem('vex_sens_show', show?'1':''); }catch(e){}
+  const btn=document.getElementById('sens-toggle-btn');
+  if(btn){ btn.style.opacity=show?'1':'.4'; }
+}
 function allKnownNames(){
   const s = new Set();
   try { Object.keys(S.clients||{}).forEach(n=>s.add(n)); (S.members||[]).forEach(m=>s.add(m.name)); } catch(e){}
@@ -1815,6 +1847,9 @@ function ceRender(){
       <span>今月の区分 ${rateBadge(rt)}</span>
     </div>
     <datalist id="ce-names">${names}</datalist>
+    ${sec('利益の配分')}
+    ${renderDistBar(rt)}
+    <p class="help" style="margin-top:4px">グレーの部分（リスク管理・運営）の詳細は表示されません。</p>
     ${sec('紹介者')}
     <label class="lbl">直紹介者${CE.refsManual?' <span style="color:var(--blue);font-size:10px">手入力</span>':' <span style="color:var(--muted);font-size:10px">シートから自動</span>'}</label>
     <div id="ce-refs1">${ceRowsHtml('refs1')}</div>
@@ -2429,12 +2464,12 @@ function renderSettlePay(){
       <td class="mn" style="text-align:right;color:var(--blue);font-weight:600">${yen(r.user)}${r.sf.amount?`<div style="font-size:10.5px;color:var(--gold);font-weight:500" title="${escH(r.sf.label)}">＋不足 ${yen(r.sf.amount)}</div>`:''}</td>
       <td class="mn" style="text-align:right;color:#a5c4ff">${yen(r.refDirect)}</td><td class="mn" style="text-align:right;color:#a5c4ff">${yen(r.refIndirect)}</td>
       <td class="mn" style="text-align:right;color:#ec4899">${r.funder?yen(r.funder):'—'}</td>
-      <td class="mn" style="text-align:right;color:var(--gold)">${yen(r.ops)}</td><td class="mn" style="text-align:right;color:var(--green)">${yen(r.risk)}</td>
+      <td class="mn sens-col" style="text-align:right;color:var(--gold)">${yen(r.ops)}</td><td class="mn sens-col" style="text-align:right;color:var(--green)">${yen(r.risk)}</td>
       <td style="font-size:11.5px;color:var(--dim)">${escH(refsLabel(getRefs(r.name).refs1))||'<span style="color:var(--muted)">—</span>'}</td>
       <td style="white-space:nowrap"><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenClientPeriod(${nJs}, ${mJs})" ${r.months.length?'':'disabled'}>🧾 明細</button>
         <button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="ceOpen(${nJs})" title="紹介者・プランなどを編集">✏️</button></td>
     </tr>`; }).join('')
-    + `<tr class="tot"><td></td><td colspan="2">合計（${rows.length}名）</td><td class="mn" style="text-align:right">${yen(sum('profit'))}</td><td class="mn" style="text-align:right">${yen(sum('user'))}</td><td class="mn" style="text-align:right">${yen(sum('refDirect'))}</td><td class="mn" style="text-align:right">${yen(sum('refIndirect'))}</td><td class="mn" style="text-align:right">${yen(sum('funder'))}</td><td class="mn" style="text-align:right">${yen(sum('ops'))}</td><td class="mn" style="text-align:right">${yen(sum('risk'))}</td><td></td><td></td></tr>`;
+    + `<tr class="tot"><td></td><td colspan="2">合計（${rows.length}名）</td><td class="mn" style="text-align:right">${yen(sum('profit'))}</td><td class="mn" style="text-align:right">${yen(sum('user'))}</td><td class="mn" style="text-align:right">${yen(sum('refDirect'))}</td><td class="mn" style="text-align:right">${yen(sum('refIndirect'))}</td><td class="mn" style="text-align:right">${yen(sum('funder'))}</td><td class="mn sens-col" style="text-align:right">${yen(sum('ops'))}</td><td class="mn sens-col" style="text-align:right">${yen(sum('risk'))}</td><td></td><td></td></tr>`;
 }
 
 
@@ -3115,6 +3150,7 @@ function saveLs(){
 }
 
 function initApp(){
+  try{ if(localStorage.getItem('vex_sens_show')==='1'){ document.body.classList.add('sens-show'); const btn=document.getElementById('sens-toggle-btn'); if(btn){btn.style.opacity='1';} } }catch(e){}
   // 運営チームのデフォルト割合を初期化
   if(!Object.keys(S.opsDistributions).length){
     OPS_TEAM.forEach(name=>{ S.opsDistributions[name]=Math.floor(100/OPS_TEAM.length); });
@@ -3908,9 +3944,10 @@ function calcVex(profit, type) {
   const user     = Math.round(profit * r.user);
   const refDirect  = Math.round(profit * r.ref1);
   const refIndirect= Math.round(profit * r.ref2);
-  const ops      = Math.round(profit * r.ops);
   const risk     = Math.round(profit * r.risk);
   const funder   = Math.round(profit * (r.funder||0));
+  // 運営は残り（全体から他を引いた余り）
+  const ops      = profit - user - refDirect - refIndirect - risk - funder;
   return { user, refDirect, refIndirect, ops, risk, funder, rates: r };
 }
 
