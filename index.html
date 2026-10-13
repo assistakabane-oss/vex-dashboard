@@ -4817,6 +4817,17 @@ async function histDelete(id) {
   gasPost('deleteHistory', {id}).catch(()=>{});
   renderHistoryTab();
 }
+async function histReturnToPayment(rowIndex) {
+  if(!confirm('この送金記録を「未送金」に戻しますか？\n（清算履歴から外れ、支払い管理に戻ります）')) return;
+  const r=(S.bankData||[]).find(d=>d.rowIndex===rowIndex); if(!r) return;
+  const payload={...r, status:'未送金', transferDate:ymdOf(r.transferDate)||''};
+  try {
+    const res = await gasPost('updateBankTransfer', payload);
+    if(res.error) throw new Error(res.error);
+    r.status='未送金';
+    renderHistoryTab();
+  } catch(e) { alert('エラー: ' + e.message); }
+}
 async function histDeleteBank(rowIndex) {
   if(!confirm('この送金済み記録を削除しますか？\n（支払い管理からも削除されます）')) return;
   try {
@@ -4908,7 +4919,10 @@ function renderHistoryTab() {
         <td class="mn" style="color:#a5c4ff;font-size:12px">${r.ref1_reward?y2(r.ref1_reward):'—'}</td>
         <td class="mn" style="color:#a5c4ff;font-size:12px">${r.ref2_reward?y2(r.ref2_reward):'—'}</td>
         <td style="font-size:11.5px;color:var(--muted)">振込 ${y2(r.transfer)}</td>
-        <td><button onclick="histDeleteBank(${r.rowIndex})" title="この送金記録を削除" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px">✕</button></td>
+        <td style="white-space:nowrap">
+          <button onclick="histReturnToPayment(${r.rowIndex})" title="支払い管理に戻す（未送金に変更）" style="background:rgba(232,168,74,.15);border:none;color:var(--gold);cursor:pointer;font-size:11px;padding:3px 7px;border-radius:4px;margin-right:4px">↩ 戻す</button>
+          <button onclick="histDeleteBank(${r.rowIndex})" title="この送金記録を削除" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px">✕</button>
+        </td>
       </tr>`;
       }
       if (r._paid){
