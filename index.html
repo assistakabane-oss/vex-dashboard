@@ -3585,7 +3585,7 @@ function renderBankTab(){
         const _nm=r.note&&r.note.match(/(\d{4})年/);
         const _yr=_nm?_nm[1]:new Date(r.transferDate||Date.now()).getFullYear().toString();
         const _md=(_mbr.months&&_mbr.months[_yr])||{};
-        const _nzm=Object.entries(_md).filter(([,v])=>v!==0).sort(([a],[b])=>+a-+b);
+        const _mrx=r.note&&r.note.match(new RegExp('(\\d+)'+String.fromCharCode(26376)+'[^\\d'+String.fromCharCode(65288)+']*'+String.fromCharCode(26376)+'(\\d+)'+String.fromCharCode(26376))));const _sm=_mrx?+_mrx[1]:null,_em=_mrx?+_mrx[2]:null;const _nzm=Object.entries(_md).filter(([mo,v])=>v!==0&&(_sm===null||(_sm<=+mo&&+mo<=_em))).sort(([a],[b])=>+a-+b);
         if(_nzm.length>0){
           const _tot=_nzm.reduce((s,[,v])=>s+v,0);
           const _rt=_tot!==0?parseFloat(r.selfReward)/_tot:0;
