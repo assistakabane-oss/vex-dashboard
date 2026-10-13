@@ -595,7 +595,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               </div>
             </div>
             <div style="overflow-x:auto"><table>
-              <thead><tr><th style="width:28px"><input type="checkbox" id="sel-all-ref" onchange="selAll('ref',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>紹介者</th><th style="text-align:right">直紹介</th><th style="text-align:right">間接紹介</th><th style="text-align:right">合計</th><th>内訳（紹介したユーザー）</th><th></th></tr></thead>
+              <thead><tr><th style="width:28px"><input type="checkbox" id="sel-all-ref" onchange="selAll('ref',this.checked)" title="表示中の全員を選ぶ" style="width:auto"/></th><th>紹介者</th><th style="text-align:right">直紹介</th><th style="text-align:right">間接紹介</th><th style="text-align:right">合計</th><th>内訳（お客様・期間・売上・報酬率）</th><th></th></tr></thead>
               <tbody id="rr-tbody"><tr class="empty"><td colspan="7">データを読み込んでください</td></tr></tbody>
             </table></div>
           </div>
@@ -2221,9 +2221,8 @@ function stmtBuildPartner(kind){
     rows.forEach(r=>{
       const m=(S.members||[]).find(x=>x.name===r.user);
       r.profit = m ? ((m.months[r.year]||{})[r.month]||0) : 0;
-      const rates=getRates(r.user, undefined, ymKey(r.year, r.month));
-      // 間接紹介はref2レート、それ以外はref1レート
-      r.baseRate = r.type==='間接紹介' ? (rates.ref2||0) : (rates.ref1||0);
+      // 報酬%＝受取額÷売上（実効率）
+      r.baseRate = r.profit > 0 ? r.amount / r.profit : 0;
     });
   }
   return { kind, name, ...p, rows,
@@ -4572,23 +4571,33 @@ function renderReferrerRewards(){
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
       const r=calcVex(profit, getRates(m.name, undefined, ymKey(year,month)));
       Object.entries(refPayouts(m.name, r.refDirect, r.refIndirect)).forEach(([n,v])=>{
-        const o=out[n]=out[n]||{direct:0, indirect:0, from:{}};
+        const o=out[n]=out[n]||{direct:0, indirect:0, entries:[]};
         o.direct+=v.direct+v.extra; o.indirect+=v.indirect;
-        const f=o.from[m.name]=o.from[m.name]||{direct:0, indirect:0}; f.direct+=v.direct+v.extra; f.indirect+=v.indirect;
+        if(v.direct+v.extra+v.indirect) o.entries.push({year, month, user:m.name, profit, direct:v.direct+v.extra, indirect:v.indirect});
       });
     });
   });
-  Object.keys(PAID.ref||{}).forEach(n=>{ if(!out[n]) out[n]={direct:0, indirect:0, from:{}}; });
+  Object.keys(PAID.ref||{}).forEach(n=>{ if(!out[n]) out[n]={direct:0, indirect:0, entries:[]}; });
   Object.entries(out).forEach(([n,o])=>{ o.sf=shortfallFor('ref', n, months); });
   const rows=Object.entries(out).filter(([,o])=>o.direct+o.indirect>0||o.sf.amount>0).sort((a,b)=>(b[1].direct+b[1].indirect)-(a[1].direct+a[1].indirect));
   SEL_VIS.ref=rows.map(([n])=>n); selUpdate('ref');
   if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="7">この期間の紹介報酬はありません</td></tr>'; return; }
   const mJs=JSON.stringify(months).replace(/"/g,'&quot;');
-  tb.innerHTML = rows.map(([n,o])=>`<tr><td>${selBox('ref', n)}</td><td>${escH(n)}${isClientName(n)?'':' <span style="font-size:10px;color:var(--muted)">外部</span>'}</td>
+  const pctStr=r=>r>0?(r*100).toFixed(1).replace(/\.0$/,'')+'%':'—';
+  tb.innerHTML = rows.map(([n,o])=>{
+    const sorted=o.entries.slice().sort((a,b)=>(a.year*100+a.month)-(b.year*100+b.month)||a.user.localeCompare(b.user,'ja'));
+    const detail=sorted.map(e=>{
+      const parts=[];
+      if(e.direct) parts.push(`直${pctStr(e.direct/e.profit)} ¥${fmt(e.direct)}`);
+      if(e.indirect) parts.push(`間${pctStr(e.indirect/e.profit)} ¥${fmt(e.indirect)}`);
+      return `<span>${escH(e.user)} 様</span> <span style="color:var(--muted)">${e.year}年${e.month}月</span> <span style="color:var(--muted)">売上¥${fmt(e.profit)}</span> <span style="color:#a5c4ff">${parts.join(' ')}</span>`;
+    }).join('<br>');
+    return `<tr><td>${selBox('ref', n)}</td><td>${escH(n)}${isClientName(n)?'':' <span style="font-size:10px;color:var(--muted)">外部</span>'}</td>
     <td class="mn" style="text-align:right;color:#a5c4ff">¥${fmt(o.direct)}</td><td class="mn" style="text-align:right;color:#a5c4ff">¥${fmt(o.indirect)}</td>
     <td class="mn" style="text-align:right;font-weight:600">¥${fmt(o.direct+o.indirect)}${o.sf.amount?`<div style="font-size:10.5px;color:var(--gold);font-weight:500" title="${escH(o.sf.label)}">＋不足 ¥${fmt(o.sf.amount)}</div>`:''}</td>
-    <td style="font-size:11px;color:var(--dim);line-height:1.7">${Object.entries(o.from).map(([u,v])=>`${escH(u)}（${v.direct?'直 ¥'+fmt(v.direct):''}${v.direct&&v.indirect?' / ':''}${v.indirect?'間 ¥'+fmt(v.indirect):''}）`).join('<br>')}</td>
-    <td><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenPartner('ref', ${JSON.stringify(n).replace(/"/g,'&quot;')}, ${mJs})">🧾 明細</button></td></tr>`).join('')
+    <td style="font-size:11px;color:var(--dim);line-height:2">${detail||'—'}</td>
+    <td><button class="btn btn-secondary btn-sm" style="padding:4px 9px;font-size:11px" onclick="stmtOpenPartner('ref', ${JSON.stringify(n).replace(/"/g,'&quot;')}, ${mJs})">🧾 明細</button></td></tr>`;
+  }).join('')
     + `<tr class="tot"><td></td><td>合計（${periodLabelOf(months)}）</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.indirect,0))}</td><td class="mn" style="text-align:right">¥${fmt(rows.reduce((a,[,o])=>a+o.direct+o.indirect,0))}</td><td></td><td></td></tr>`;
 }
 function renderNetworkTab() {
