@@ -3632,7 +3632,7 @@ function renderBankTab(){
     // 日付ごとにグループ化して合計行を表示
     const _dateGroups={};
     filteredMain.forEach(r=>{
-      const _d=r.transferDate?r.transferDate.slice(0,10):'不明';
+      const _d=r.transferDate?(()=>{const _dt=new Date(r.transferDate);return new Date(_dt.getTime()+9*3600000).toISOString().slice(0,10);})():'不明';
       if(!_dateGroups[_d])_dateGroups[_d]={rows:[],total:0};
       _dateGroups[_d].rows.push(r);
       _dateGroups[_d].total+=(parseFloat(r.transferAmount)||0);
