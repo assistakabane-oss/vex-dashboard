@@ -902,11 +902,9 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <th>タイプ</th>
               <th>名前</th>
               <th>銀行情報</th>
-              <th>振込金額</th>
-              <th>売上</th>
-              <th style="background:rgba(138,100,255,.08);color:#b49dff">本人報酬</th>
-              <th style="background:rgba(52,199,138,.08);color:#34c78a">直紹介</th>
-              <th style="background:rgba(232,168,74,.08);color:#e8a84a">間接紹介</th>
+              <th>本人報酬（振込額合計）</th>
+              <th style="background:rgba(52,199,138,.08);color:#34c78a">直紹介合計</th>
+              <th style="background:rgba(232,168,74,.08);color:#e8a84a">間接紹介合計</th>
               <th>振込予定日</th>
               <th>紹介者</th>
               <th>ステータス</th>
@@ -914,7 +912,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <th>操作</th>
             </tr></thead>
             <tbody id="payment-tbody">
-              <tr class="empty"><td colspan="14">「データを読み込む」ボタンで取得してください</td></tr>
+              <tr class="empty"><td colspan="12">「データを読み込む」ボタンで取得してください</td></tr>
             </tbody>
           </table>
         </div>
@@ -3473,7 +3471,7 @@ function renderBankTab(){
   const selAll=document.getElementById('bank-sel-all'); if(selAll) selAll.checked=false;
   document.getElementById('bank-bulk-delete-btn').style.display='none';
   if(!filtered.length){
-    tbody.innerHTML='<tr class="empty"><td colspan="14">データなし</td></tr>';
+    tbody.innerHTML='<tr class="empty"><td colspan="12">データなし</td></tr>';
   } else {
     tbody.innerHTML=filtered.map(r=>{
       const isOwn=r.type==='自己資金';
@@ -3485,9 +3483,7 @@ function renderBankTab(){
         <td><span class="rb" style="background:${tc}22;color:${tc};font-size:11px">${r.type||'—'}</span></td>
         <td style="font-weight:500">${r.name||'—'}</td>
         <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:normal;line-height:1.5">${bankShort||'—'}<br><span style="color:var(--dim)">${r.accountHolder||''}</span></td>
-        <td class="mn" style="color:var(--gold)">¥${fmt(parseFloat(r.transferAmount)||0)}</td>
-        <td class="mn" style="font-size:12px">¥${fmt(parseFloat(r.rewardAmount)||0)}</td>
-        <td class="mn" style="color:#b49dff;font-size:12px">¥${fmt(parseFloat(r.selfReward)||0)}</td>
+        <td class="mn" style="color:var(--gold);font-weight:600">¥${fmt(parseFloat(r.transferAmount)||0)}</td>
         <td class="mn" style="color:var(--green);font-size:12px">¥${fmt(parseFloat(r.directReward)||0)}</td>
         <td class="mn" style="color:var(--gold);font-size:12px">¥${fmt(parseFloat(r.indirectReward)||0)}</td>
         <td style="font-size:12px;color:var(--muted)">${r.transferDate||'—'}</td>
