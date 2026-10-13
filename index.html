@@ -918,16 +918,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
         </div>
       </div>
 
-      <!-- 紹介者別報酬サマリー -->
-      <div class="tbl-card" style="margin-top:16px">
-        <div class="tbl-hdr"><div class="tbl-ttl">🔗 紹介者別 累計報酬（全期間）</div></div>
-        <table>
-          <thead><tr><th>紹介者名</th><th>直紹介人数</th><th>直紹介報酬合計</th><th>間接紹介報酬合計</th><th>合計報酬</th></tr></thead>
-          <tbody id="ref-summary-tbody">
-            <tr class="empty"><td colspan="5">データなし</td></tr>
-          </tbody>
-        </table>
-      </div>
+
     </div>
 
     <!-- 銀行送金 入力フォームモーダル -->
@@ -3497,32 +3488,6 @@ function renderBankTab(){
     }).join('');
   }
 
-  // 紹介者別サマリー（紹介者報酬タイプの行をname軸で集計）
-  const refMap={};
-  (S.bankData||[]).forEach(r=>{
-    if(r.type !== '紹介者報酬') return;
-    if(!refMap[r.name]) refMap[r.name]={count:0,direct:0,indirect:0,transfer:0};
-    refMap[r.name].count++;
-    refMap[r.name].direct+=parseFloat(r.directReward)||0;
-    refMap[r.name].indirect+=parseFloat(r.indirectReward)||0;
-    refMap[r.name].transfer+=parseFloat(r.transferAmount)||0;
-  });
-  const refTbody=document.getElementById('ref-summary-tbody');
-  const entries=Object.entries(refMap);
-  if(!entries.length){
-    refTbody.innerHTML='<tr class="empty"><td colspan="5">データなし</td></tr>';
-  } else {
-    refTbody.innerHTML=entries.map(([name,d],i)=>{
-      const col=COLORS[i%COLORS.length];
-      return`<tr>
-        <td><div class="mc"><div class="av" style="background:${col}22;color:${col};width:26px;height:26px;font-size:11px">${name[0]}</div>${name}</div></td>
-        <td class="mn">${d.count}件</td>
-        <td class="mn" style="color:var(--green)">¥${fmt(d.direct)}</td>
-        <td class="mn" style="color:var(--gold)">¥${fmt(d.indirect)}</td>
-        <td class="mn gd">¥${fmt(d.direct+d.indirect)}</td>
-      </tr>`;
-    }).join('');
-  }
 }
 
 const ymdOf = v => { if(!v) return ''; const s=String(v); if(/^\d{4}-\d{2}-\d{2}$/.test(s)) return s; const d=new Date(s); return isNaN(d) ? s : `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
