@@ -3102,7 +3102,24 @@ function mergeBankInfo(bankMap){
     if(S.clients[k]) Object.assign(S.clients[k], v);
   });
 }
-
+// 古市グループ 静的銀行情報
+const FURUICHI_BANK_INFO={
+  '小薗井眞実':{bank:'ソニー銀行',branch:'001 本店営業部',accountType:'普通',accountNumber:'9878584',accountHolder:'オソノイマミ'},
+  '齊藤尚美':{bank:'PayPay銀行',branch:'かわせみ支店(007)',accountType:'普通',accountNumber:'2146002',accountHolder:'サイトウナオミ'},
+  '中崎朋子':{bank:'セブン銀行',branch:'サルビア支店',accountType:'普通',accountNumber:'3270104',accountHolder:'ナカザキトモコ'},
+  '柴山郁子':{bank:'PayPay銀行',branch:'つばめ支店（006）',accountType:'普通',accountNumber:'8091182',accountHolder:'シバヤマイクコ'},
+  '八嶋貴生':{bank:'セブン銀行',branch:'コスモス支店',accountType:'普通',accountNumber:'3513294',accountHolder:'ヤシマアツキ'},
+  '星野あおい':{bank:'ドコモSMTBネット銀行',branch:'バナナ',accountType:'普通',accountNumber:'8759447',accountHolder:'ホシノアオイ'},
+  '佐藤星也':{bank:'ドコモSMTBネット銀行',branch:'メロン',accountType:'普通',accountNumber:'7431248',accountHolder:'サトウセイヤ'},
+  '田中洋子':{bank:'三井住友銀行',branch:'甲子園支店',accountType:'普通',accountNumber:'4490667',accountHolder:'タナカヨウコ'},
+  '梶和代':{bank:'三井住友銀行',branch:'目黒支店',accountType:'普通預金',accountNumber:'2644631',accountHolder:'カジカズヨ'},
+  '新谷佐智恵':{bank:'ドコモSMTBネット銀行',branch:'ブドウ支店',accountType:'普通',accountNumber:'2154836',accountHolder:'シンタニサチエ'},
+  '竹島広和':{bank:'北陸銀行',branch:'大島支店',accountType:'普通',accountNumber:'4633821',accountHolder:'タケシマヒロカズ'},
+  '久保田昌宏':{bank:'PayPay銀行',branch:'はやぶさ支店',accountType:'普通',accountNumber:'8630150',accountHolder:''},
+  '平塚亜紀子':{bank:'富山銀行',branch:'本店',accountType:'普通',accountNumber:'2183812',accountHolder:'ヒラツカアキコ'},
+  '藤吉速開':{bank:'三菱UFJ銀行',branch:'豊田支店',accountType:'普通',accountNumber:'1156231',accountHolder:'フジヨシハヤアキ'},
+  '種元信治':{bank:'みずほ銀行',branch:'荷窜支店',accountType:'普通',accountNumber:'2678734',accountHolder:'タネモトシンジ'},
+};
 async function connect(){
   const keyEl=document.getElementById('ikey');
   const key=(keyEl?keyEl.value:'').trim()||EMBEDDED_API_KEY;
@@ -3118,6 +3135,7 @@ async function connect(){
     S.members=parseSales(sv);
     S.clients=parseClients(cv);
     if(bv) mergeBankInfo(parseBankInfo(bv));
+    if(window.GROUP_ID==='furuichi'){Object.entries(FURUICHI_BANK_INFO).forEach(([k,v])=>{if(!S.clients[k])S.clients[k]={};Object.assign(S.clients[k],v);});}
     if(!S.members.length) throw new Error('メンバーデータが取得できませんでした。\nスプレッドシートを「リンクを知っている全員が閲覧可能」に設定してください。');
     const years=new Set();
     S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
@@ -3147,6 +3165,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     S.members=parseSales(sv);
     S.clients=parseClients(cv);
     if(bv) mergeBankInfo(parseBankInfo(bv));
+    if(window.GROUP_ID==='furuichi'){Object.entries(FURUICHI_BANK_INFO).forEach(([k,v])=>{if(!S.clients[k])S.clients[k]={};Object.assign(S.clients[k],v);});}
     if(!S.members.length) throw new Error('データなし');
     const years=new Set();
     S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
