@@ -3052,7 +3052,8 @@ function parseClients(values){
 }
 
 // 銀行情報シートをパースして {正規化名: {bank,branch,accountType,accountNumber,accountHolder}} を返す
-// 列: 0=No, 1=氏名, 2=振込金額, 3=銀行名, 4=支店名, 5=口座種別, 6=口座番号, 7=口座名義
+// 列: 0=No, 1=氏名, 2以降=金額列(複数可), その後=銀行名,支店名,口座種別,口座番号,口座名義
+// 金額列は数字・円・カンマのみなので動的にスキップして銀行名列を検出する
 function parseBankInfo(values){
   const out={};
   if(!values||!values.length) return out;
@@ -3060,22 +3061,24 @@ function parseBankInfo(values){
     const row=values[ri]||[];
     const rawName=(row[1]||'').toString().trim();
     if(!rawName||rawName==='氏名') continue;
-    const bank=(row[3]||'').toString().trim();
+    // col2以降で数字・円・カンマ・¥のみのセルをスキップして銀行名列を探す
+    let bi=2;
+    while(bi<row.length && /^[\d,¥円\s０-９]*$/.test((row[bi]||'').toString().trim())) bi++;
+    const bank=(row[bi]||'').toString().trim();
     if(!bank) continue;
     const key=rawName.replace(/[\s　]/g,''); // スペース除去で正規化
     out[key]={
       bank,
-      branch:(row[4]||'').toString().trim(),
-      accountType:(row[5]||'').toString().trim()||'普通',
-      accountNumber:(row[6]||'').toString().trim(),
-      accountHolder:(row[7]||'').toString().trim()
+      branch:(row[bi+1]||'').toString().trim(),
+      accountType:(row[bi+2]||'').toString().trim()||'普通',
+      accountNumber:(row[bi+3]||'').toString().trim(),
+      accountHolder:(row[bi+4]||'').toString().trim()
     };
     // スペースあり版も登録（どちらでもヒットするよう）
     if(rawName!==key) out[rawName]=out[key];
   }
   return out;
 }
-
 // 銀行情報をS.clientsにマージ
 function mergeBankInfo(bankMap){
   if(!bankMap||!S.clients) return;
@@ -3094,7 +3097,7 @@ async function connect(){
   showLoad('スプレッドシートに接続中...');
   try{
     const fetches=[sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)];
-    if(BANK_INFO_ID) fetches.push(sheetsAPI(BANK_INFO_ID,`${BANK_INFO_SHEET}!A1:H200`).catch(()=>[]));
+    if(BANK_INFO_ID) fetches.push(sheetsAPI(BANK_INFO_ID,`${BANK_INFO_SHEET}!A1:J200`).catch(()=>[]));
     const[sv,cv,bv]=await Promise.all(fetches);
     S.members=parseSales(sv);
     S.clients=parseClients(cv);
@@ -3123,7 +3126,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   showLoad('接続中...');
   try{
     const fetches=[sheetsAPI(SALES_ID,`${SALES_SHEET}!A1:AZ300`),sheetsAPI(CLIENT_ID,`${CLIENT_SHEET}!A1:AD400`)];
-    if(BANK_INFO_ID) fetches.push(sheetsAPI(BANK_INFO_ID,`${BANK_INFO_SHEET}!A1:H200`).catch(()=>[]));
+    if(BANK_INFO_ID) fetches.push(sheetsAPI(BANK_INFO_ID,`${BANK_INFO_SHEET}!A1:J200`).catch(()=>[]));
     const[sv,cv,bv]=await Promise.all(fetches);
     S.members=parseSales(sv);
     S.clients=parseClients(cv);
