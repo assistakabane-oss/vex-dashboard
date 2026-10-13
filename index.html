@@ -2134,14 +2134,16 @@ function partnerTotals(kind, months){
   (S.members||[]).forEach(m=>{
     refMonthsFor(m.name, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
-      const r=calcVex(profit, getRates(m.name, undefined, ymKey(year,month)));
       if (kind==='ref'){
-        Object.entries(refPayouts(m.name, r.refDirect, r.refIndirect)).forEach(([n,v])=>{
+        // 紹介者報酬は固定率で計算（プランや割合に関わらず、設定の資金提供プランのref1/ref2を使用）
+        const refDirect=Math.round(profit*RATE_PLANS.fund.ref1), refIndirect=Math.round(profit*RATE_PLANS.fund.ref2);
+        Object.entries(refPayouts(m.name, refDirect, refIndirect)).forEach(([n,v])=>{
           add(n,{year,month,user:m.name,key:'direct',type:'直紹介',amount:v.direct});
           add(n,{year,month,user:m.name,key:'extra',type:'間接紹介（間接紹介者なしのため上乗せ）',amount:v.extra});
           add(n,{year,month,user:m.name,key:'indirect',type:'間接紹介',amount:v.indirect});
         });
       } else {
+        const r=calcVex(profit, getRates(m.name, undefined, ymKey(year,month)));
         funderSplit(m.name, r.funder).forEach(x=>add(x.funder,{year,month,user:m.name,key:'funder',type:'資金提供',amount:x.amount}));
       }
     });
@@ -4568,8 +4570,9 @@ function renderReferrerRewards(){
   (S.members||[]).forEach(m=>{
     refMonthsFor(m.name, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
-      const r=calcVex(profit, getRates(m.name, undefined, ymKey(year,month)));
-      Object.entries(refPayouts(m.name, r.refDirect, r.refIndirect)).forEach(([n,v])=>{
+      // 紹介者報酬は固定率で計算（プランや割合に関わらず、設定の資金提供プランのref1/ref2を使用）
+      const refDirect=Math.round(profit*RATE_PLANS.fund.ref1), refIndirect=Math.round(profit*RATE_PLANS.fund.ref2);
+      Object.entries(refPayouts(m.name, refDirect, refIndirect)).forEach(([n,v])=>{
         const o=out[n]=out[n]||{direct:0, indirect:0, entries:[]};
         o.direct+=v.direct+v.extra; o.indirect+=v.indirect;
         if(v.direct+v.extra+v.indirect) o.entries.push({year, month, user:m.name, profit, direct:v.direct+v.extra, indirect:v.indirect});
