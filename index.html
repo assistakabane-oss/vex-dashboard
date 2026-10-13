@@ -893,10 +893,12 @@ tr:hover td{background:rgba(255,255,255,.015)}
         <div class="tbl-hdr">
           <div class="tbl-ttl">💳 銀行送金一覧</div>
           <div class="tbl-sub" id="payment-count">0件</div>
+          <button id="bank-bulk-delete-btn" class="btn btn-danger btn-sm" onclick="bankBulkDelete()" style="display:none;font-size:12px;padding:5px 12px;margin-left:auto">🗑️ 選択削除</button>
         </div>
         <div style="overflow-x:auto">
           <table style="min-width:1100px">
             <thead><tr>
+              <th style="width:36px"><input type="checkbox" id="bank-sel-all" onchange="bankSelectAll(this.checked)" style="accent-color:#34c78a;cursor:pointer"/></th>
               <th>タイプ</th>
               <th>名前</th>
               <th>銀行情報</th>
@@ -912,7 +914,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <th>操作</th>
             </tr></thead>
             <tbody id="payment-tbody">
-              <tr class="empty"><td colspan="13">「データを読み込む」ボタンで取得してください</td></tr>
+              <tr class="empty"><td colspan="14">「データを読み込む」ボタンで取得してください</td></tr>
             </tbody>
           </table>
         </div>
@@ -3467,8 +3469,11 @@ function renderBankTab(){
   document.getElementById('payment-count').textContent=filtered.length+'件';
 
   const tbody=document.getElementById('payment-tbody');
+  // 全選択チェックをリセット
+  const selAll=document.getElementById('bank-sel-all'); if(selAll) selAll.checked=false;
+  document.getElementById('bank-bulk-delete-btn').style.display='none';
   if(!filtered.length){
-    tbody.innerHTML='<tr class="empty"><td colspan="13">データなし</td></tr>';
+    tbody.innerHTML='<tr class="empty"><td colspan="14">データなし</td></tr>';
   } else {
     tbody.innerHTML=filtered.map(r=>{
       const isOwn=r.type==='自己資金';
@@ -3476,6 +3481,7 @@ function renderBankTab(){
       const isDone=r.status==='送金済み';
       const bankShort=[r.bankName,r.branchName,r.accountType,r.accountNumber].filter(Boolean).join(' / ');
       return`<tr>
+        <td style="text-align:center"><input type="checkbox" class="bank-row-sel" data-idx="${r.rowIndex}" onchange="bankSelChange()" style="accent-color:#e05252;cursor:pointer"/></td>
         <td><span class="rb" style="background:${tc}22;color:${tc};font-size:11px">${r.type||'—'}</span></td>
         <td style="font-weight:500">${r.name||'—'}</td>
         <td style="font-size:11px;color:var(--muted);max-width:140px;white-space:normal;line-height:1.5">${bankShort||'—'}<br><span style="color:var(--dim)">${r.accountHolder||''}</span></td>
@@ -3663,6 +3669,37 @@ async function deleteBankEntry(){
     hideLoad();
     alert('通信エラー: '+e.message);
   }
+}
+
+function bankSelectAll(checked){
+  document.querySelectorAll('.bank-row-sel').forEach(cb=>{ cb.checked=checked; });
+  bankSelChange();
+}
+function bankSelChange(){
+  const all=[...document.querySelectorAll('.bank-row-sel')];
+  const checked=all.filter(c=>c.checked);
+  const btn=document.getElementById('bank-bulk-delete-btn');
+  if(btn) btn.style.display=checked.length?'':'none';
+  const selAll=document.getElementById('bank-sel-all');
+  if(selAll){ selAll.indeterminate=checked.length>0&&checked.length<all.length; selAll.checked=checked.length===all.length&&all.length>0; }
+}
+async function bankBulkDelete(){
+  const checked=[...document.querySelectorAll('.bank-row-sel:checked')];
+  if(!checked.length) return;
+  if(!confirm(`選択した ${checked.length} 件を削除しますか？`)) return;
+  const indexes=checked.map(c=>parseInt(c.dataset.idx));
+  showLoad(`削除中… (0/${indexes.length})`);
+  let done=0;
+  for(const rowIndex of indexes){
+    try{
+      const json=await gasPost('deleteBankTransfer',{rowIndex});
+      if(json.error) throw new Error(json.error);
+    }catch(e){ hideLoad(); alert('削除エラー(rowIndex='+rowIndex+'): '+e.message); return; }
+    done++;
+    showLoad(`削除中… (${done}/${indexes.length})`);
+  }
+  hideLoad();
+  await loadBankTransfers();
 }
 
 // ================================================================
