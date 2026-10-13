@@ -4817,6 +4817,15 @@ async function histDelete(id) {
   gasPost('deleteHistory', {id}).catch(()=>{});
   renderHistoryTab();
 }
+async function histDeleteBank(rowIndex) {
+  if(!confirm('この送金済み記録を削除しますか？\n（支払い管理からも削除されます）')) return;
+  try {
+    const res = await gasPost('deleteBankTransfer', {rowIndex});
+    if(res.error) throw new Error(res.error);
+    S.bankData = (S.bankData||[]).filter(r=>r.rowIndex!==rowIndex);
+    renderHistoryTab();
+  } catch(e) { alert('削除エラー: ' + e.message); }
+}
 
 function histMsg(msg, type) {
   const el = document.getElementById('hist-msg');
@@ -4846,7 +4855,7 @@ function bankHistRows(){
     const isRef=r.type==='紹介者報酬', isFunder=r.type==='資金提供者報酬';
     return { _bank:true, ym:d.slice(0,7), date:d, user:r.name, type:r.type, period:r.note||'', profit:isRef||isFunder?0:(+r.rewardAmount||0),
       user_reward:isRef||isFunder?0:(+r.selfReward||0), ref1_reward:isRef?(+r.directReward||+r.rewardAmount||0):0, ref2_reward:isRef?(+r.indirectReward||0):0, funder:isFunder?(+r.rewardAmount||0):0,
-      transfer:+r.transferAmount||0 }; });
+      transfer:+r.transferAmount||0, rowIndex:r.rowIndex }; });
 }
 function renderHistoryTab() {
   if(!renderHistoryTab._bankTried && !(S.bankData||[]).length && typeof gasGet==='function'){ renderHistoryTab._bankTried=true; gasGet('getBankTransfers').then(j=>{ const d=(j&&(j.data||j))||[]; if(Array.isArray(d)&&d.length){ S.bankData=d; renderHistoryTab(); } }).catch(()=>{}); }
@@ -4899,7 +4908,7 @@ function renderHistoryTab() {
         <td class="mn" style="color:#a5c4ff;font-size:12px">${r.ref1_reward?y2(r.ref1_reward):'—'}</td>
         <td class="mn" style="color:#a5c4ff;font-size:12px">${r.ref2_reward?y2(r.ref2_reward):'—'}</td>
         <td style="font-size:11.5px;color:var(--muted)">振込 ${y2(r.transfer)}</td>
-        <td></td>
+        <td><button onclick="histDeleteBank(${r.rowIndex})" title="この送金記録を削除" style="background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 6px">✕</button></td>
       </tr>`;
       }
       if (r._paid){
