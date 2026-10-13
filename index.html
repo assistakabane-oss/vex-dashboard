@@ -3629,7 +3629,25 @@ function renderBankTab(){
   if(!filteredMain.length){
     tbody.innerHTML='<tr class="empty"><td colspan="6">データなし</td></tr>';
   } else {
-    tbody.innerHTML=filteredMain.map(rowHtml).join('');
+    // 日付ごとにグループ化して合計行を表示
+    const _dateGroups={};
+    filteredMain.forEach(r=>{
+      const _d=r.transferDate?r.transferDate.slice(0,10):'不明';
+      if(!_dateGroups[_d])_dateGroups[_d]={rows:[],total:0};
+      _dateGroups[_d].rows.push(r);
+      _dateGroups[_d].total+=(parseFloat(r.transferAmount)||0);
+    });
+    let _tHtml='';
+    Object.keys(_dateGroups).sort().forEach(_d=>{
+      const _g=_dateGroups[_d];
+      const _dLabel=_d==='不明'?'不明':_d.replace('-','年').replace('-','月')+'日';
+      _tHtml+='<tr style="background:rgba(255,255,255,.04);border-top:2px solid rgba(255,255,255,.12)"><td colspan="6" style="padding:8px 14px;font-size:12px;color:var(--muted)">'+
+        String.fromCharCode(128197)+' '+_dLabel+
+        ' <span style="margin-left:12px;color:var(--text);font-weight:600">振込合計: '+String.fromCharCode(165)+fmt(_g.total)+'</span>'+
+        ' <span style="margin-left:8px;color:var(--muted)">('+_g.rows.length+'件)</span></td></tr>';
+      _tHtml+=_g.rows.map(rowHtml).join('');
+    });
+    tbody.innerHTML=_tHtml;
   }
 
   // 紹介者報酬テーブル
