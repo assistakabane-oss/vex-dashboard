@@ -4588,7 +4588,10 @@ function renderReferrerRewards(){
       Object.entries(refPayouts(m.name, refDirect, refIndirect)).forEach(([n,v])=>{
         const o=out[n]=out[n]||{direct:0, indirect:0, entries:[]};
         o.direct+=v.direct+v.extra; o.indirect+=v.indirect;
-        if(v.direct+v.extra+v.indirect) o.entries.push({year, month, user:m.name, profit, direct:v.direct+v.extra, indirect:v.indirect});
+        if(v.direct+v.extra+v.indirect) const _rref1=_f2.refs1.find(r=>r.name===n); const _rref2=(_f2.refs2||[]).find(r=>r.name===n);
+        const _dr1=(_rref1?.pct!=null?_rref1.pct:fixRef1)+(v.extra>0?fixRef2:0);
+        const _dr2=_rref2?.pct!=null?_rref2.pct:fixRef2;
+        o.entries.push({year, month, user:m.name, profit, direct:v.direct+v.extra, indirect:v.indirect, r1:_dr1, r2:_dr2});
       });
     });
   });
@@ -4603,8 +4606,8 @@ function renderReferrerRewards(){
     const sorted=o.entries.slice().sort((a,b)=>(a.year*100+a.month)-(b.year*100+b.month)||a.user.localeCompare(b.user,'ja'));
     const detail=sorted.map(e=>{
       const parts=[];
-      if(e.direct) parts.push(`直${pctStr(e.direct/e.profit)} ¥${fmt(e.direct)}`);
-      if(e.indirect) parts.push(`間${pctStr(e.indirect/e.profit)} ¥${fmt(e.indirect)}`);
+      if(e.direct) parts.push(`直${pctStr(e.r1??e.direct/e.profit)} ¥${fmt(e.direct)}`);
+      if(e.indirect) parts.push(`間${pctStr(e.r2??e.indirect/e.profit)} ¥${fmt(e.indirect)}`);
       return `<span>${escH(e.user)} 様</span> <span style="color:var(--muted)">${e.year}年${e.month}月</span> <span style="color:var(--muted)">売上¥${fmt(e.profit)}</span> <span style="color:#a5c4ff">${parts.join(' ')}</span>`;
     }).join('<br>');
     return `<tr><td>${selBox('ref', n)}</td><td>${escH(n)}${isClientName(n)?'':' <span style="font-size:10px;color:var(--muted)">外部</span>'}</td>
