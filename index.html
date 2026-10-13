@@ -3601,7 +3601,7 @@ function renderBankTab(){
       } else {
         detItems.push(`<div><span style="color:var(--muted)">本人報酬：</span><span style="color:var(--gold);font-weight:600">¥${fmt(parseFloat(r.selfReward))}</span></div>`);
       }
-    }font-weight:600">¥${fmt(parseFloat(r.selfReward))}</span></div>`);
+    }
     if(r.referrer) detItems.push(`<div><span style="color:var(--muted)">紹介者：</span>${r.referrer}</div>`);
     if(r.note) detItems.push(`<div style="grid-column:1/-1"><span style="color:var(--muted)">備考：</span>${r.note}</div>`);
     return`<tr style="cursor:pointer" onclick="bankToggleDetail('${detId}',event)">
