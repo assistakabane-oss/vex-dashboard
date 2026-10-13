@@ -3687,7 +3687,8 @@ async function bankBulkDelete(){
   const checked=[...document.querySelectorAll('.bank-row-sel:checked')];
   if(!checked.length) return;
   if(!confirm(`選択した ${checked.length} 件を削除しますか？`)) return;
-  const indexes=checked.map(c=>parseInt(c.dataset.idx));
+  // 降順で削除しないとシートの行番号がずれて誤削除になる
+  const indexes=checked.map(c=>parseInt(c.dataset.idx)).sort((a,b)=>b-a);
   showLoad(`削除中… (0/${indexes.length})`);
   let done=0;
   for(const rowIndex of indexes){
