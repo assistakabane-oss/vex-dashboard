@@ -2170,7 +2170,7 @@ function partnerTotals(kind, months){
   const members = (kind==='ref' && SEL.client.size>0) ? (S.members||[]).filter(m=>SEL.client.has(m.name)) : (S.members||[]);
   members.forEach(m=>{
     refMonthsFor(m.name, months).forEach(({year,month})=>{
-      const profit=(m.months[year]||{})[month]||0; if(!profit) return;
+      const profit=(m.months[year]||{})[month]||0; if(profit <= 0) return; // マイナス月は報酬なし
       if (kind==='ref'){
         // 紹介者報酬はプランや自己資金割合に関わらず固定率で計算
         // 優先順: ①個別率(custom) ②紹介者一覧の手入力% ③固定デフォルト(資金提供プランのref1/ref2)
@@ -2417,7 +2417,8 @@ function settleRow(m, months){
   months.forEach(({year,month})=>{
     const p=(m.months[year]||{})[month]||0;
     const rt=getRates(m.name, undefined, ymKey(year,month));
-    if(p){ const r=calcVex(p, rt); o.profit+=p; o.user+=r.user; o.refDirect+=r.refDirect; o.refIndirect+=r.refIndirect; o.funder+=r.funder||0; o.ops+=r.ops; o.risk+=r.risk; o.labels.add(rateLabel(rt)+' '+pctTxt(rt.user)); o.rates=rt; }
+    o.profit+=p; // 損失月もそのまま合計（表示用）
+    if(p > 0){ const r=calcVex(p, rt); o.user+=r.user; o.refDirect+=r.refDirect; o.refIndirect+=r.refIndirect; o.funder+=r.funder||0; o.ops+=r.ops; o.risk+=r.risk; o.labels.add(rateLabel(rt)+' '+pctTxt(rt.user)); o.rates=rt; }
   });
   const last=months[months.length-1];
   if(!o.rates) o.rates=getRates(m.name, undefined, last ? ymKey(last.year,last.month) : undefined);
@@ -4573,7 +4574,7 @@ function funderRewards(months){
   Object.keys(FUNDERS.links||{}).forEach(user=>{
     const m=(S.members||[]).find(x=>x.name===user); if(!m) return;
     refMonthsFor(user, months).forEach(({year,month})=>{
-      const profit=(m.months[year]||{})[month]||0; if(!profit) return;
+      const profit=(m.months[year]||{})[month]||0; if(profit <= 0) return; // マイナス月は報酬なし
       const r=calcVex(profit, getRates(user, undefined, ymKey(year,month)));
       funderSplit(user, r.funder).forEach(x=>{
         const o=out[x.funder]=out[x.funder]||{total:0, users:{}};
@@ -4614,7 +4615,7 @@ function renderReferrerRewards(){
   // 清算で✅があればその対象のみ、なければ全員
   (SEL.client.size>0 ? (S.members||[]).filter(m=>SEL.client.has(m.name)) : (S.members||[])).forEach(m=>{
     refMonthsFor(m.name, months).forEach(({year,month})=>{
-      const profit=(m.months[year]||{})[month]||0; if(!profit) return;
+      const profit=(m.months[year]||{})[month]||0; if(profit <= 0) return; // マイナス月は報酬なし
       // 紹介者報酬はプランや自己資金割合に関わらず固定率で計算
       // 優先順: ①個別率(custom) ②紹介者一覧の手入力% ③固定デフォルト(資金提供プランのref1/ref2)
       const _u2=USER_RATES[m.name]||{}, _f2=getRefs(m.name);
