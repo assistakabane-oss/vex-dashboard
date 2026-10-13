@@ -3579,7 +3579,29 @@ function renderBankTab(){
     const detItems=[];
     if(r.transferDate){const _td=new Date(r.transferDate);const _ds=isNaN(_td)?r.transferDate:`${_td.getFullYear()}/${String(_td.getMonth()+1).padStart(2,'0')}/${String(_td.getDate()).padStart(2,'0')}`;detItems.push(`<div><span style="color:var(--muted)">振込予定日：</span>${_ds}</div>`);}
     if(bankShort) detItems.push(`<div><span style="color:var(--muted)">銀行情報：</span>${bankShort}${_bh?' ('+_bh+')':''}</div>`);
-    if(parseFloat(r.selfReward)) detItems.push(`<div><span style="color:var(--muted)">本人報金：</span><span style="color:var(--gold);font-weight:600">¥${fmt(parseFloat(r.selfReward))}</span></div>`);
+    if(parseFloat(r.selfReward) && r.name){
+      const _mbr=(S.members||[]).find(m=>normName(m.name||'')=== normName(r.name||''));
+      if(_mbr){
+        const _nm=r.note&&r.note.match(/(\d{4})年/);
+        const _yr=_nm?_nm[1]:new Date(r.transferDate||Date.now()).getFullYear().toString();
+        const _md=(_mbr.months&&_mbr.months[_yr])||{};
+        const _nzm=Object.entries(_md).filter(([,v])=>v!==0).sort(([a],[b])=>+a-+b);
+        if(_nzm.length>0){
+          const _tot=_nzm.reduce((s,[,v])=>s+v,0);
+          const _rt=_tot!==0?parseFloat(r.selfReward)/_tot:0;
+          const _rtp=Math.round(_rt*100)+'%';
+          const _rows=_nzm.map(([mo,profit])=>{
+            const _rw=Math.round(profit*_rt);
+            return `<div style="display:grid;grid-template-columns:52px 1fr 42px 1fr;gap:1px 6px;padding:2px 0;font-size:11.5px"><span style="color:var(--muted)">${_yr}/${String(mo).padStart(2,'0')}</span><span style="text-align:right">¥${fmt(profit)}</span><span style="color:var(--muted);text-align:center">×${_rtp}</span><span style="color:var(--gold);font-weight:600">¥${fmt(_rw)}</span></div>`;
+          }).join('');
+          detItems.push(`<div style="grid-column:1/-1"><span style="color:var(--muted)">本人報酬内訳：</span><div style="margin-top:4px;padding:6px 8px;background:rgba(0,0,0,.2);border-radius:6px;border:1px solid rgba(255,255,255,.06)">${_rows}</div></div>`);
+        } else {
+          detItems.push(`<div><span style="color:var(--muted)">本人報酬：</span><span style="color:var(--gold);font-weight:600">¥${fmt(parseFloat(r.selfReward))}</span></div>`);
+        }
+      } else {
+        detItems.push(`<div><span style="color:var(--muted)">本人報酬：</span><span style="color:var(--gold);font-weight:600">¥${fmt(parseFloat(r.selfReward))}</span></div>`);
+      }
+    }font-weight:600">¥${fmt(parseFloat(r.selfReward))}</span></div>`);
     if(r.referrer) detItems.push(`<div><span style="color:var(--muted)">紹介者：</span>${r.referrer}</div>`);
     if(r.note) detItems.push(`<div style="grid-column:1/-1"><span style="color:var(--muted)">備考：</span>${r.note}</div>`);
     return`<tr style="cursor:pointer" onclick="bankToggleDetail('${detId}',event)">
