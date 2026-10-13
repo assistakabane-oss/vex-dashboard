@@ -2135,8 +2135,12 @@ function partnerTotals(kind, months){
     refMonthsFor(m.name, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
       if (kind==='ref'){
-        // 紹介者報酬は固定率で計算（プランや割合に関わらず、設定の資金提供プランのref1/ref2を使用）
-        const refDirect=Math.round(profit*RATE_PLANS.fund.ref1), refIndirect=Math.round(profit*RATE_PLANS.fund.ref2);
+        // 紹介者報酬はプランや自己資金割合に関わらず固定率で計算
+        // 優先順: ①個別率(custom) ②紹介者一覧の手入力% ③固定デフォルト(資金提供プランのref1/ref2)
+        const _u=USER_RATES[m.name]||{}, _f=getRefs(m.name);
+        const fixRef1=_u.custom?(_u.custom.ref1||0):(_f.refPct!=null?_f.refPct:RATE_PLANS.fund.ref1);
+        const fixRef2=_u.custom?(_u.custom.ref2||0):(_f.ref2Pct!=null?_f.ref2Pct:RATE_PLANS.fund.ref2);
+        const refDirect=Math.round(profit*fixRef1), refIndirect=Math.round(profit*fixRef2);
         Object.entries(refPayouts(m.name, refDirect, refIndirect)).forEach(([n,v])=>{
           add(n,{year,month,user:m.name,key:'direct',type:'直紹介',amount:v.direct});
           add(n,{year,month,user:m.name,key:'extra',type:'間接紹介（間接紹介者なしのため上乗せ）',amount:v.extra});
@@ -4570,8 +4574,12 @@ function renderReferrerRewards(){
   (S.members||[]).forEach(m=>{
     refMonthsFor(m.name, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
-      // 紹介者報酬は固定率で計算（プランや割合に関わらず、設定の資金提供プランのref1/ref2を使用）
-      const refDirect=Math.round(profit*RATE_PLANS.fund.ref1), refIndirect=Math.round(profit*RATE_PLANS.fund.ref2);
+      // 紹介者報酬はプランや自己資金割合に関わらず固定率で計算
+      // 優先順: ①個別率(custom) ②紹介者一覧の手入力% ③固定デフォルト(資金提供プランのref1/ref2)
+      const _u2=USER_RATES[m.name]||{}, _f2=getRefs(m.name);
+      const fixRef1=_u2.custom?(_u2.custom.ref1||0):(_f2.refPct!=null?_f2.refPct:RATE_PLANS.fund.ref1);
+      const fixRef2=_u2.custom?(_u2.custom.ref2||0):(_f2.ref2Pct!=null?_f2.ref2Pct:RATE_PLANS.fund.ref2);
+      const refDirect=Math.round(profit*fixRef1), refIndirect=Math.round(profit*fixRef2);
       Object.entries(refPayouts(m.name, refDirect, refIndirect)).forEach(([n,v])=>{
         const o=out[n]=out[n]||{direct:0, indirect:0, entries:[]};
         o.direct+=v.direct+v.extra; o.indirect+=v.indirect;
