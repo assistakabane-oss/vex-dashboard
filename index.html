@@ -2131,7 +2131,9 @@ function refMonthsFor(name, months){
 function partnerTotals(kind, months){
   const out={};
   const add=(n,row)=>{ if(!n||!row.amount) return; const o=out[n]=out[n]||{direct:0,indirect:0,extra:0,funder:0,total:0,rows:[]}; o[row.key]+=row.amount; o.total+=row.amount; o.rows.push(row); };
-  (S.members||[]).forEach(m=>{
+  // 紹介者報酬は清算支払いで✅されたクライアントのみ対象（資金提供者は全員）
+  const members = kind==='ref' ? (S.members||[]).filter(m=>SEL.client.has(m.name)) : (S.members||[]);
+  members.forEach(m=>{
     refMonthsFor(m.name, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
       if (kind==='ref'){
@@ -4571,7 +4573,8 @@ function renderReferrerRewards(){
   const tb=document.getElementById('rr-tbody'); if(!tb) return;
   const months = partnerTableMonths('ref');
   const out={};
-  (S.members||[]).forEach(m=>{
+  // 清算支払いで✅されたクライアントのみ対象
+  (S.members||[]).filter(m=>SEL.client.has(m.name)).forEach(m=>{
     refMonthsFor(m.name, months).forEach(({year,month})=>{
       const profit=(m.months[year]||{})[month]||0; if(!profit) return;
       // 紹介者報酬はプランや自己資金割合に関わらず固定率で計算
