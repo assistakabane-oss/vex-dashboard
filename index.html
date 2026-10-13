@@ -3577,7 +3577,7 @@ function renderBankTab(){
     const bankShort=[_bn,_br,_bt,_bno].filter(Boolean).join(' / ');
     const detId='bd-'+r.rowIndex;
     const detItems=[];
-    if(r.transferDate) detItems.push(`<div><span style="color:var(--muted)">振込予定日：</span>${r.transferDate}</div>`);
+    if(r.transferDate){const _td=new Date(r.transferDate);const _ds=isNaN(_td)?r.transferDate:`${_td.getFullYear()}/${String(_td.getMonth()+1).padStart(2,'0')}/${String(_td.getDate()).padStart(2,'0')}`;detItems.push(`<div><span style="color:var(--muted)">振込予定日：</span>${_ds}</div>`);}
     if(bankShort) detItems.push(`<div><span style="color:var(--muted)">銀行情報：</span>${bankShort}${_bh?' ('+_bh+')':''}</div>`);
     if(parseFloat(r.directReward)) detItems.push(`<div><span style="color:#34c78a">直紹介合計：</span>¥${fmt(parseFloat(r.directReward))}</div>`);
     if(parseFloat(r.indirectReward)) detItems.push(`<div><span style="color:#e8a84a">間接紹介合計：</span>¥${fmt(parseFloat(r.indirectReward))}</div>`);
