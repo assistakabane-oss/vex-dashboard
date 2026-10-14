@@ -3120,6 +3120,14 @@ const FURUICHI_BANK_INFO={
   '藤吉速開':{bank:'三菱UFJ銀行',branch:'豊田支店',accountType:'普通',accountNumber:'1156231',accountHolder:'フジヨシハヤアキ'},
   '種元信治':{bank:'みずほ銀行',branch:'荷窜支店',accountType:'普通',accountNumber:'2678734',accountHolder:'タネモトシンジ'},
 };
+// 第一グループ 静的追加・変更銀行情報
+const G1_EXTRA_BANK_INFO={
+  '清水里江子':{bank:'三井住友銀行',branch:'諏訪支店',accountType:'普通',accountNumber:'4883736',accountHolder:'シミズリエコ'},
+  '森亜希子':{bank:'りそな銀行',branch:'名古屋駅前支店',accountType:'普通',accountNumber:'1738781',accountHolder:'モリアキコ'},
+  '渡邊諒子':{bank:'ゆうちょ銀行',branch:'七一八店',accountType:'普通',accountNumber:'3068179',accountHolder:'ワタナベ　リョウコ'},
+  '鈴木孝司':{bank:'りそな銀行',branch:'ベータ支店',accountType:'普通',accountNumber:'0691151',accountHolder:'スズキ　タカシ'},
+  '池田千鶴':{bank:'ドコモSMTBネット銀行',branch:'ミカン支店',accountType:'普通',accountNumber:'9463691',accountHolder:'イケダチヅル'},
+};
 async function connect(){
   const keyEl=document.getElementById('ikey');
   const key=(keyEl?keyEl.value:'').trim()||EMBEDDED_API_KEY;
@@ -3136,6 +3144,7 @@ async function connect(){
     S.clients=parseClients(cv);
     if(bv) mergeBankInfo(parseBankInfo(bv));
     if(window.GROUP_ID==='furuichi'){Object.entries(FURUICHI_BANK_INFO).forEach(([k,v])=>{if(!S.clients[k])S.clients[k]={};Object.assign(S.clients[k],v);});}
+    if(window.GROUP_ID==='g1'){Object.entries(G1_EXTRA_BANK_INFO).forEach(([k,v])=>{if(!S.clients[k])S.clients[k]={};Object.assign(S.clients[k],v);});}
     if(!S.members.length) throw new Error('メンバーデータが取得できませんでした。\nスプレッドシートを「リンクを知っている全員が閲覧可能」に設定してください。');
     const years=new Set();
     S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
@@ -3166,6 +3175,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     S.clients=parseClients(cv);
     if(bv) mergeBankInfo(parseBankInfo(bv));
     if(window.GROUP_ID==='furuichi'){Object.entries(FURUICHI_BANK_INFO).forEach(([k,v])=>{if(!S.clients[k])S.clients[k]={};Object.assign(S.clients[k],v);});}
+    if(window.GROUP_ID==='g1'){Object.entries(G1_EXTRA_BANK_INFO).forEach(([k,v])=>{if(!S.clients[k])S.clients[k]={};Object.assign(S.clients[k],v);});}
     if(!S.members.length) throw new Error('データなし');
     const years=new Set();
     S.members.forEach(m=>Object.keys(m.months).forEach(y=>years.add(parseInt(y))));
