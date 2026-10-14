@@ -455,6 +455,15 @@ tr:hover td{background:rgba(255,255,255,.015)}
             <tbody id="settlement-tbody"><tr class="empty"><td colspan="7">一括計算タブでデータを入力してください</td></tr></tbody>
           </table>
         </div>
+        <div class="tbl-card" style="margin-top:20px">
+          <div class="tbl-hdr">
+            <div class="tbl-ttl">📊 清算カレンダー</div>
+            <div style="font-size:12px;color:var(--muted)">メンバーごとの 済／未 一覧</div>
+          </div>
+          <div id="settlement-calendar" style="overflow-x:auto">
+            <div style="color:var(--muted);font-size:13px;padding:16px">データを読み込んでください</div>
+          </div>
+        </div>
       </div>
 
       <!-- ④ 分配ルール -->
@@ -4090,6 +4099,99 @@ function renderSettlement() {
     </tr>`;
   }).join('');
 }
+// 清算カレンダーマトリクス描画
+function renderSettlementCalendar() {
+  const container = document.getElementById('settlement-calendar');
+  if (!container) return;
+
+  // メンバー一覧
+  const memberNames = (vexRows.length ? vexRows.map(r => r.name) : S.members.map(m => m.name))
+    .filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i);
+
+  if (!memberNames.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:16px">データを読み込んでください</div>';
+    return;
+  }
+
+  // 清算履歴から 済セット と メンバー最初の清算期を取得
+  const hist = histLoad();
+  const settledSet = new Set(hist.map(r => r.user + '::' + r.ym));
+  const memberFirstTot = {};
+  hist.forEach(r => {
+    if (!r.ym) return;
+    const [y, m] = r.ym.split('-').map(Number);
+    const tot = y * 12 + m;
+    if (!(r.user in memberFirstTot) || tot < memberFirstTot[r.user]) memberFirstTot[r.user] = tot;
+  });
+
+  // vexRows の startYM も活用（手動入力済の場合）
+  const memberStartTot = {};
+  vexRows.forEach(r => {
+    if (r.startYM) {
+      const [y, m] = r.startYM.split('-').map(Number);
+      memberStartTot[r.name] = y * 12 + m;
+    }
+  });
+
+  // 列範囲：最古の起点 〜 現在＋1四半期
+  const now = new Date();
+  const curTot = now.getFullYear() * 12 + (now.getMonth() + 1);
+  let minTot = curTot;
+  memberNames.forEach(n => {
+    if (n in memberFirstTot) minTot = Math.min(minTot, memberFirstTot[n]);
+    if (n in memberStartTot) minTot = Math.min(minTot, memberStartTot[n]);
+  });
+  const endTot = curTot + 3;
+
+  // 対象の四半期（3/6/9/12月）を列として生成
+  const cols = [];
+  const minYear = Math.floor((minTot - 1) / 12);
+  const maxYear = Math.floor(endTot / 12) + 1;
+  for (let yr = minYear; yr <= maxYear; yr++) {
+    for (const mo of [3, 6, 9, 12]) {
+      const tot = yr * 12 + mo;
+      if (tot >= minTot && tot <= endTot) cols.push({ year: yr, month: mo, ym: yr + '-' + String(mo).padStart(2,'0'), tot });
+    }
+  }
+
+  if (!cols.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:13px;padding:16px">清算期間データがありません</div>';
+    return;
+  }
+
+  const qColor = { 3: '#3b82f6', 6: '#22c55e', 9: '#eab308', 12: '#a855f7' };
+  const isPast = c => c.tot <= curTot;
+
+  // ヘッダー行
+  const thead = '<tr><th style="position:sticky;left:0;background:var(--card2);z-index:2;white-space:nowrap;padding:8px 14px;font-size:12px">名前</th>' +
+    cols.map(c => {
+      const isFuture = !isPast(c);
+      return '<th style="text-align:center;min-width:52px;padding:6px 4px;color:' + (isFuture ? 'var(--muted)' : qColor[c.month]) + ';font-size:11px;border-left:1px solid var(--border)">' + c.year + '<br><span style="font-size:13px;font-weight:700">' + c.month + '月</span></th>';
+    }).join('') + '</tr>';
+
+  // データ行
+  const tbody = memberNames.map(name => {
+    const baseTot = (name in memberStartTot) ? memberStartTot[name]
+                  : (name in memberFirstTot)  ? memberFirstTot[name] - 1
+                  : Infinity;
+
+    const cells = cols.map(c => {
+      const key = name + '::' + c.ym;
+      if (settledSet.has(key)) {
+        return '<td style="text-align:center;padding:5px 3px;border-left:1px solid var(--border)"><span style="display:inline-block;background:#22c55e;color:#fff;border-radius:5px;padding:2px 10px;font-size:12px;font-weight:700">済</span></td>';
+      }
+      if (isPast(c) && c.tot > baseTot) {
+        return '<td style="text-align:center;padding:5px 3px;border-left:1px solid var(--border)"><span style="display:inline-block;background:#fef2f2;color:#ef4444;border:1px solid #fca5a5;border-radius:5px;padding:2px 10px;font-size:12px;font-weight:700">未</span></td>';
+      }
+      return '<td style="text-align:center;padding:5px 3px;border-left:1px solid var(--border);color:var(--muted);font-size:13px">—</td>';
+    }).join('');
+
+    return '<tr style="border-bottom:1px solid var(--border)"><td style="position:sticky;left:0;background:var(--card2);white-space:nowrap;font-size:13px;font-weight:500;padding:8px 14px">' + name + '</td>' + cells + '</tr>';
+  }).join('');
+
+  container.innerHTML = '<table style="width:100%;border-collapse:collapse"><thead style="background:var(--card2)">' + thead + '</thead><tbody>' + tbody + '</tbody></table>';
+}
+
 // 自己資金: ユーザー30% 直紹介10% 間接紹介5% 運営5% リスク管理50%
 // 資金提供: ユーザー15% 直紹介5%  間接紹介5% 運営25% リスク管理50%
 // ================================================================
@@ -4263,7 +4365,7 @@ function vexSwitchTab(name) {
     if(p) p.style.display = n===name ? '' : 'none';
     if(b) b.classList.toggle('active', n===name);
   });
-  if (name === 'schedule') renderSettlement();
+  if (name === 'schedule') { renderSettlement(); renderSettlementCalendar(); }
   if (name === 'statement') stmtInit();
   if (name === 'batch') renderSettlePay();
   if (name === 'partners'){
