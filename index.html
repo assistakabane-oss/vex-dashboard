@@ -2984,6 +2984,7 @@ const CLIENT_SHEET=GROUP_CONF.clientSheet;
 const PAYMENT_SHEET=GROUP_CONF.paymentSheet;
 const VEX_STATUS_SHEET=GROUP_CONF.vexSheet;
 const BANK_INFO_SHEET=GROUP_CONF.bankInfoSheet||'支払額＆銀行情報';
+const BANK_SS_ID = GROUP_ID !== 'g1' ? (GROUP_CONF.client || '') : '';
 // 運営チームメンバー（固定）
 const OPS_TEAM = GROUP_CONF.ops;
 const COL_MAP={};
@@ -3555,7 +3556,7 @@ S.bankData=[];
 async function loadBankTransfers(){
   showLoad('銀行送金データを読み込み中...');
   try{
-    const json=await gasGet('getBankTransfers');
+    const json=await gasGet('getBankTransfers', BANK_SS_ID ? {spreadsheetId: BANK_SS_ID} : {});
     if(json.success !== false){
       S.bankData=json.data||json||[];
       const now=new Date().toLocaleString('ja-JP');
@@ -4713,16 +4714,20 @@ async function vexBulkRegisterToPayment(){
   alert("登録完了: "+ok+"件 / 失敗: "+fail+"件");
   if(ok>0){sw("payment");loadBankTransfers();}
 }
-async function gasGet(action) {
-  const res = await fetch(`${GAS_URL}?action=${action}`);
+async function gasGet(action, params={}) {
+  let url = `${GAS_URL}?action=${action}`;
+  for (const [k,v] of Object.entries(params)) if(v) url += `&${k}=${encodeURIComponent(v)}`;
+  const res = await fetch(url);
   const d = await res.json();
   return d;
 }
 
 async function gasPost(action, payload) {
+  const bankActions = ['saveBankTransfer','updateBankTransfer','deleteBankTransfer'];
+  const finalPayload = bankActions.includes(action) ? {...(payload||{}), spreadsheetId: BANK_SS_ID} : payload;
   const res = await fetch(GAS_URL, {
     method: 'POST',
-    body: JSON.stringify({ action, payload }),
+    body: JSON.stringify({ action, payload: finalPayload }),
   });
   return await res.json();
 }
@@ -5158,7 +5163,7 @@ function bankHistRows(){
       transfer:+r.transferAmount||0, rowIndex:r.rowIndex }; });
 }
 function renderHistoryTab() {
-  if(!renderHistoryTab._bankTried && !(S.bankData||[]).length && typeof gasGet==='function'){ renderHistoryTab._bankTried=true; gasGet('getBankTransfers').then(j=>{ const d=(j&&(j.data||j))||[]; if(Array.isArray(d)&&d.length){ S.bankData=d; renderHistoryTab(); } }).catch(()=>{}); }
+  if(!renderHistoryTab._bankTried && !(S.bankData||[]).length && typeof gasGet==='function'){ renderHistoryTab._bankTried=true; gasGet('getBankTransfers', BANK_SS_ID ? {spreadsheetId: BANK_SS_ID} : {}).then(j=>{ const d=(j&&(j.data||j))||[]; if(Array.isArray(d)&&d.length){ S.bankData=d; renderHistoryTab(); } }).catch(()=>{}); }
   const arr = [...histLoad(), ...paidHistRows(), ...bankHistRows()].sort((a,b)=>String(b.ym||'').localeCompare(String(a.ym||'')));
   const filterYear = document.getElementById('hist-filter-year')?.value||'';
   const filterMonth = document.getElementById('hist-filter-month')?.value||'';
