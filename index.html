@@ -323,6 +323,19 @@ tr:hover td{background:rgba(255,255,255,.015)}
               <label class="lbl">月次利益（円）</label>
               <input class="inp" id="vex-profit" type="number" placeholder="例：500000" oninput="vexCalc()" style="font-family:var(--mono)"/>
             </div>
+                        <div style="display:flex;gap:10px">
+                                        <div class="fg" style="flex:1">
+                                                          <label class="lbl">経費（円）</label>label>
+                                                          <input class="inp" id="vex-expense" type="number" placeholder="0" oninput="vexCalc()" style="font-family:var(--mono)"/>
+                                                          <p class="help">利益から差し引く経費（PC代・交通費など）</p>p>
+                                        </div>
+                                        <div class="fg" style="flex:1">
+                                                          <label class="lbl">手数料（円）</label>label>
+                                                          <input class="inp" id="vex-fee" type="number" placeholder="0" oninput="vexCalc()" style="font-family:var(--mono)"/>
+                                                          <p class="help">振込手数料など（ユーザー手取りから控除）</p>p>
+                                        </div>
+                        </div>
+            </div>
             <div class="fg">
               <label class="lbl">運用開始月</label>
               <input class="inp" id="vex-start" type="month" oninput="vexCalc()" style="font-family:var(--mono)"/>
@@ -4084,6 +4097,8 @@ function vexCalc() {
   const ref2name = document.getElementById('vex-ref2')?.value.trim() || '';
   const startYM  = document.getElementById('vex-start')?.value || '';
 
+    const expense = parseFloat(document.getElementById('vex-expense')?.value) || 0;
+    const fee = parseFloat(document.getElementById('vex-fee')?.value) || 0;
   const ownEl  = document.getElementById('lbl-own');
   const fundEl = document.getElementById('lbl-fund');
   if (ownEl)  ownEl.style.borderColor  = type === 'own'  ? 'var(--blue)' : 'var(--border)';
@@ -4152,6 +4167,7 @@ function vexCalc() {
     <div style="padding:10px 14px;background:rgba(255,255,255,.03);display:flex;justify-content:space-between;font-size:12px;color:var(--muted)">
       <span>合計</span><span style="font-family:var(--mono)">¥${fmt(r.user+r.refDirect+r.refIndirect+r.ops+r.risk+(r.funder||0))}</span>
     </div>
+        ${(expense||fee)?'<div style="margin-top:8px;background:rgba(240,85,85,.06);border:1px solid rgba(240,85,85,.15);border-radius:var(--r-sm);padding:12px 14px"><div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:8px">控除・手数料</div>'+(expense?'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(240,85,85,.1)"><span style="font-size:12.5px;color:var(--muted)">経費</span><span style="font-family:var(--mono);color:#f05555">−¥'+fmt(expense)+'</span></div>':'')+(fee?'<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(240,85,85,.1)"><span style="font-size:12.5px;color:var(--muted)">振込手数料等</span><span style="font-family:var(--mono);color:#f05555">−¥'+fmt(fee)+'</span></div>':'')+'<div style="display:flex;justify-content:space-between;padding-top:8px;font-weight:600"><span style="font-size:13px">ユーザー実振込額</span><span style="font-family:var(--mono);font-size:15px;color:var(--blue)">¥'+fmt(Math.max(0,r.user-expense-fee))+'</span></div></div>':''}
     ${settlInfo}
     ${vName?`<button class="btn btn-secondary btn-full btn-sm" style="margin-top:12px" onclick="stmtOpenFor(${JSON.stringify(vName).replace(/"/g,'&quot;')},{mode:'manual',profit:${profit},ownPct:${ownPct},ref1:${JSON.stringify(ref1name).replace(/"/g,'&quot;')},ref2:${JSON.stringify(ref2name).replace(/"/g,'&quot;')}})">🧾 この内容で報酬明細を作成</button>`:''}`;
 }
