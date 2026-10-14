@@ -372,7 +372,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <input class="inp" id="cs-search" placeholder="🔍 名前で絞り込み" oninput="renderSettlePay()" style="width:160px;padding:6px 10px;font-size:12px"/>
           <label style="font-size:12px;color:var(--dim);display:flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="cs-hide0" checked onchange="renderSettlePay()" style="width:auto"/>報酬0円の人を隠す</label>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
-            <label style="font-size:12px;color:var(--dim)" title="振込額に1人あたり加算する金額（旧一括計算では+2,000円）">振込加算 ¥<input class="inp" id="cs-addfee" type="number" value="2000" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)" oninput="renderSettlePay()"/></label>
+            <label style="font-size:12px;color:var(--dim)" title="振込額に1人あたり加算する金額（旧一括計算では+2,000円）">振込加算 ¥<input class="inp" id="cs-addfee" type="number" value="0" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)" oninput="renderSettlePay()"/></label>
             <label style="font-size:12px;color:var(--dim)" title="1人あたりの経費（PC代・通信費など）をユーザー手取りから控除">経費控除 ¥<input class="inp" id="cs-expense" type="number" value="0" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)" oninput="renderSettlePay()"/></label>
             <label style="font-size:12px;color:var(--dim)" title="振込手数料など（ユーザー手取りから控除）">手数料控除 ¥<input class="inp" id="cs-fee" type="number" value="0" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)" oninput="renderSettlePay()"/></label>
             <button class="btn btn-secondary btn-sm" onclick="lockCurrentPeriod()" title="表示中の期間の全員の月別利益を保存し、以後シートが変わってもこの利益で計算する">🔒 この期間を確定</button>
