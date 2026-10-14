@@ -869,6 +869,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <div class="tbl-ttl">💳 銀行送金一覧</div>
           <div class="tbl-sub" id="payment-count">0件</div>
           <button id="bank-bulk-delete-btn" class="btn btn-danger btn-sm" onclick="bankBulkDelete()" style="display:none;font-size:12px;padding:5px 12px;margin-left:auto">🗑️ 選択削除</button>
+          <button id="bank-bulk-pdf-btn" class="btn btn-primary btn-sm" onclick="bankBulkPdf()" style="display:none;font-size:12px;padding:5px 12px;margin-left:8px">📦 明細PDF</button>
         </div>
         <div style="overflow-x:auto">
           <table style="min-width:400px">
@@ -3852,6 +3853,8 @@ function bankSelChange(){
   const checked=all.filter(c=>c.checked);
   const btn=document.getElementById('bank-bulk-delete-btn');
   if(btn) btn.style.display=checked.length?'':'none';
+  const pdfBtn=document.getElementById('bank-bulk-pdf-btn');
+  if(pdfBtn) pdfBtn.style.display=checked.length?'':'none';
   const selAll=document.getElementById('bank-sel-all');
   if(selAll){ selAll.indeterminate=checked.length>0&&checked.length<all.length; selAll.checked=checked.length===all.length&&all.length>0; }
 }
@@ -3901,6 +3904,75 @@ async function bankDeleteDuplicates(){
   hideLoad();
   await loadBankTransfers();
   alert(`✅ ${done}件の重複データを削除しました`);
+}
+
+// ================================================================
+// 💳 支払い管理 PDF出力
+// ================================================================
+
+function parseMonthsFromNote(note){
+  // "YYYY年M月〜N月（...）" or "YYYY年M月〜YYYY年N月"
+  const m1=(note||'').match(/(\d{4})年(\d{1,2})月[〜～](?:(\d{4})年)?(\d{1,2})月/);
+  if(m1){
+    const sy=parseInt(m1[1]),sm=parseInt(m1[2]),ey=m1[3]?parseInt(m1[3]):sy,em=parseInt(m1[4]);
+    return monthsBetween(`${sy}-${String(sm).padStart(2,'0')}`,`${ey}-${String(em).padStart(2,'0')}`);
+  }
+  // "YYYY年M月分"
+  const m2=(note||'').match(/(\d{4})年(\d{1,2})月/);
+  if(m2) return [{year:parseInt(m2[1]),month:parseInt(m2[2])}];
+  return null;
+}
+
+function bankKindOf(type){
+  if((type||'').includes('紹介者')) return 'ref';
+  if((type||'').includes('資金提供者')) return 'funder';
+  return 'client';
+}
+
+async function bankBulkPdf(){
+  const checked=[...document.querySelectorAll('.bank-row-sel:checked')];
+  if(!checked.length){ alert('PDFを出力する人に ✅ を入れてください'); return; }
+  const data=S.bankData||[];
+  const selectedIndexes=new Set(checked.map(c=>parseInt(c.dataset.idx)));
+  const entries=data.filter(r=>selectedIndexes.has(parseInt(r.rowIndex)));
+  if(!confirm(`${entries.length}名の明細をPDFでダウンロードします（ZIPにまとめます）`)) return;
+  showLoad('PDFライブラリを読み込み中...');
+  await loadPdfLibs();
+  const zip=new JSZip(), used={};
+  let ok=0;
+  const errs=[];
+  for(let i=0;i<entries.length;i++){
+    const e=entries[i];
+    showLoad(`PDF作成中 ${i+1}/${entries.length}：${e.name}`);
+    const months=parseMonthsFromNote(e.note||'');
+    if(!months||!months.length){
+      errs.push(`${e.name}：期間を読み取れませんでした（備考：${e.note||'なし'}）`);
+      continue;
+    }
+    const kind=bankKindOf(e.type);
+    try{
+      const h=stmtHtmlFor(kind,e.name,months);
+      if(h && h.error){ errs.push(`${e.name}：${h.error}`); continue; }
+      if(!h || !h.html){ errs.push(`${e.name}：明細HTMLの生成に失敗しました`); continue; }
+      let fn=`報酬明細_${e.name}_${h.label}.pdf`.replace(/[\\/:*?"<>|]/g,'_');
+      if(used[fn]) fn=fn.replace(/\.pdf$/,`_${i+1}.pdf`);
+      used[fn]=1;
+      zip.file(fn, await htmlToPdfBlob(h.html));
+      ok++;
+    }catch(e2){ errs.push(`${e.name}：${e2.message}`); }
+  }
+  if(ok){
+    showLoad('ZIPを作成中...');
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download=`報酬明細_${new Date().toISOString().slice(0,10)}.zip`;
+    document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },2000);
+  }
+  hideLoad();
+  const msg=`📦 PDF：${ok}件をZIPでダウンロードしました`+(errs.length?`\n\n⚠️ 作れなかった明細：\n${errs.join('\n')}`:'');
+  alert(msg);
 }
 
 // ================================================================
