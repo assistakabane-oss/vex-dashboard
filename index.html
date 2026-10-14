@@ -373,8 +373,6 @@ tr:hover td{background:rgba(255,255,255,.015)}
           <label style="font-size:12px;color:var(--dim);display:flex;gap:5px;align-items:center;cursor:pointer"><input type="checkbox" id="cs-hide0" checked onchange="renderSettlePay()" style="width:auto"/>報酬0円の人を隠す</label>
           <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
             <label style="font-size:12px;color:var(--dim)" title="振込額に1人あたり加算する金額（旧一括計算では+2,000円）">振込加算 ¥<input class="inp" id="cs-addfee" type="number" value="0" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)" oninput="renderSettlePay()"/></label>
-            <label style="font-size:12px;color:var(--dim)" title="1人あたりの経費（PC代・通信費など）をユーザー手取りから控除">経費控除 ¥<input class="inp" id="cs-expense" type="number" value="0" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)" oninput="renderSettlePay()"/></label>
-            <label style="font-size:12px;color:var(--dim)" title="振込手数料など（ユーザー手取りから控除）">手数料控除 ¥<input class="inp" id="cs-fee" type="number" value="0" style="width:80px;padding:5px 8px;font-size:12px;font-family:var(--mono)" oninput="renderSettlePay()"/></label>
             <button class="btn btn-secondary btn-sm" onclick="lockCurrentPeriod()" title="表示中の期間の全員の月別利益を保存し、以後シートが変わってもこの利益で計算する">🔒 この期間を確定</button>
             <button class="btn btn-primary btn-sm" id="sel-btn-client" onclick="bulkPdfAndRegister('client')" title="✅した人の明細をPDFにしてZIPでダウンロードし、支払い管理（未送金）に登録">📦 明細PDF＋登録</button>
             <button class="btn btn-secondary btn-sm" onclick="registerClientPayments()">💳 支払い管理に登録（全員）</button>
@@ -2370,6 +2368,13 @@ async function registerPartnerPayments(kind, opts={}){
 // ---- 期間：一括（全員同じ） or クライアントごと ----
 const CS_ROWS_KEY='vex_cs_rows', CS_BULK_KEY='vex_cs_bulk';
 let CS_ROWS = lsGet(CS_ROWS_KEY, {}) || {};   // { 名前: { mode:'q'|'m'|'r', from:'YYYY-MM', to:'YYYY-MM' } }
+const CS_ADJ_KEY='vex_cs_adj';
+let CS_ADJ = lsGet(CS_ADJ_KEY, {}) || {};
+function csAdjOf(name){ return CS_ADJ[name] || {expense:0,expenseLabel:'',fee:0,feeLabel:''}; }
+function csSetAdj(name, field, val){
+  const a={...csAdjOf(name)}; a[field]=(field==='expense'||field==='fee')?parseFloat(val)||0:val;
+  CS_ADJ[name]=a; lsSet(CS_ADJ_KEY, CS_ADJ); renderSettlePay();
+}
 function specMonths(sp){
   if(!sp || !sp.from) return [];
   if(sp.mode==='r') return monthsBetween(sp.from, sp.to||sp.from);
@@ -2426,6 +2431,18 @@ function csRowControls(name){
     ${sp.mode==='r'?`<span style="color:var(--muted);font-size:11px">〜</span><input ${dis} type="month" value="${sp.to||''}" onchange="csSetRow(${nJs},'to',this.value)" style="${st};width:118px"/>`:''}
   </div>`;
 }
+function csAdjControls(name){
+  const a=csAdjOf(name), nJs=JSON.stringify(name).replace(/"/g,'&quot;');
+  const st='padding:3px 6px;font-size:11px;font-family:var(--mono);background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text)';
+  const stSm='padding:3px 5px;font-size:11px;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--dim)';
+  return `<div style="display:flex;gap:4px;margin-top:5px;align-items:center;flex-wrap:wrap">
+    <span style="font-size:10.5px;color:var(--muted);white-space:nowrap">控除：</span>
+    <input type="text" value="${escH(a.expenseLabel||'')}" placeholder="経費名" onchange="csSetAdj(${nJs},'expenseLabel',this.value)" style="${stSm};width:68px" title="経費の名称（明細に反映）"/>
+    <input type="number" value="${a.expense||''}" placeholder="0" onchange="csSetAdj(${nJs},'expense',this.value)" style="${st};width:64px" title="経費額（円）"/>
+    <input type="text" value="${escH(a.feeLabel||'')}" placeholder="手数料名" onchange="csSetAdj(${nJs},'feeLabel',this.value)" style="${stSm};width:68px" title="手数料の名称（明細に反映）"/>
+    <input type="number" value="${a.fee||''}" placeholder="0" onchange="csSetAdj(${nJs},'fee',this.value)" style="${st};width:64px" title="手数料額（円）"/>
+  </div>`;
+}
 function renderSettlePay(){
   const tb=document.getElementById('cs-tbody'); if(!tb) return;
   const bulkEl=document.getElementById('cs-bulk');
@@ -2442,8 +2459,6 @@ function renderSettlePay(){
   document.getElementById('cs-count').textContent=rows.length+'名';
   try{ renderPaid(); }catch(e){} try{ renderLockStatus(); }catch(e){}
   const csAddFee=parseFloat(document.getElementById('cs-addfee')?.value)||0;
-  const csExpense=parseFloat(document.getElementById('cs-expense')?.value)||0;
-  const csFee=parseFloat(document.getElementById('cs-fee')?.value)||0;
   SEL_VIS.client=rows.map(r=>r.name); selUpdate('client');
   if(!rows.length){ tb.innerHTML='<tr class="empty"><td colspan="12">この期間の報酬はありません（「報酬0円の人を隠す」を外すか、名前で検索すると全員表示されます）</td></tr>'; return; }
   const sum=k=>rows.reduce((a,r)=>a+r[k],0), yen=v=>(v<0?'-':'')+'¥'+fmt(Math.abs(v));
@@ -2451,10 +2466,10 @@ function renderSettlePay(){
     return `<tr>
       <td>${selBox('client', r.name)}</td>
       <td style="white-space:nowrap;min-width:310px"><div>${escH(r.name)}${!bulk&&CS_ROWS[r.name]?' <span style="font-size:10px;color:var(--blue)">個別</span>':''}</div>${csRowControls(r.name)}
-        ${r.months.length&&!periodEnded(r.months)?`<div style="font-size:10.5px;color:var(--gold);margin-top:2px">${notYetLabel(r.months)}</div>`:''}<div style="font-size:10.5px;color:var(--muted);margin-top:2px">${r.months.length?escH(periodLabelOf(r.months)):'期間を選択'}${r.months.length&&r.months.every(({year,month})=>isLocked(r.name, ymKey(year,month)))?' 🔒':''}</div>${lockDiffHtml((S.members||[]).find(x=>x.name===r.name)||{name:r.name}, r.months)}</td>
+        ${r.months.length&&!periodEnded(r.months)?`<div style="font-size:10.5px;color:var(--gold);margin-top:2px">${notYetLabel(r.months)}</div>`:''}<div style="font-size:10.5px;color:var(--muted);margin-top:2px">${r.months.length?escH(periodLabelOf(r.months)):'期間を選択'}${r.months.length&&r.months.every(({year,month})=>isLocked(r.name, ymKey(year,month)))?' 🔒':''}</div>${lockDiffHtml((S.members||[]).find(x=>x.name===r.name)||{name:r.name}, r.months)}${csAdjControls(r.name)}</td>
       <td style="font-size:11.5px">${lb.length>1?`<span style="color:var(--green)">月により異なる</span><br><span style="color:var(--muted);font-size:10.5px">${escH(lb.join(' / '))}</span>`:rateBadge(r.rates)}</td>
       <td class="mn" style="text-align:right">${yen(r.profit)}</td>
-      <td class="mn" style="text-align:right;color:var(--blue);font-weight:600">${yen(r.user)}${r.sf.amount?`<div style="font-size:10.5px;color:var(--gold);font-weight:500" title="${escH(r.sf.label)}">＋不足 ${yen(r.sf.amount)}</div>`:''}${(csExpense||csFee)?`<div style="font-size:10.5px;color:var(--muted);margin-top:2px">実振込 <span style="color:var(--blue);font-weight:600">${yen(Math.max(0, r.user+r.sf.amount+csAddFee-csExpense-csFee))}</span></div>`:''}</td>
+      <td class="mn" style="text-align:right;color:var(--blue);font-weight:600">${yen(r.user)}${r.sf.amount?`<div style="font-size:10.5px;color:var(--gold);font-weight:500" title="${escH(r.sf.label)}">＋不足 ${yen(r.sf.amount)}</div>`:''}${(()=>{const _a=csAdjOf(r.name),_e=_a.expense||0,_f=_a.fee||0;return (_e||_f)?`<div style="font-size:10.5px;color:var(--muted);margin-top:2px">実振込 <span style="color:var(--blue);font-weight:600">${yen(Math.max(0,r.user+r.sf.amount+csAddFee-_e-_f))}</span></div>`:''})()}</td>
       <td class="mn" style="text-align:right;color:#a5c4ff">${yen(r.refDirect)}</td><td class="mn" style="text-align:right;color:#a5c4ff">${yen(r.refIndirect)}</td>
       <td class="mn" style="text-align:right;color:#ec4899">${r.funder?yen(r.funder):'—'}</td>
       <td class="mn sens-col" style="text-align:right;color:var(--gold)">${yen(r.ops)}</td><td class="mn sens-col" style="text-align:right;color:var(--green)">${yen(r.risk)}</td>
@@ -2744,13 +2759,18 @@ function stmtOpenClientPeriod(name, months){
   if(isQuarterMonths(months)){ document.getElementById('stmt-mode').value='quarter'; document.getElementById('stmt-year').value=last.year; document.getElementById('stmt-qmonth').value=String(last.month); }
   else if(months.length>1){ document.getElementById('stmt-mode').value='range'; document.getElementById('stmt-from').value=ymKey(first.year,first.month); document.getElementById('stmt-to').value=ymKey(last.year,last.month); }
   else { document.getElementById('stmt-mode').value='month'; document.getElementById('stmt-month').value=ymKey(last.year,last.month); }
+  // 個別経費・手数料をadj欄に自動反映
+  const _adj=csAdjOf(name); const _e2=_adj.expense||0, _f2=_adj.fee||0;
+  if(_e2||_f2){
+    const aEl=document.getElementById('stmt-adj'); if(aEl) aEl.value=-(_e2+_f2);
+    const alEl=document.getElementById('stmt-adj-label');
+    if(alEl){ const parts=[]; if(_e2)parts.push(_adj.expenseLabel||'経費'); if(_f2)parts.push(_adj.feeLabel||'振込手数料'); alEl.value=parts.join('・'); }
+  }
   stmtModeChanged(); stmtRender();
 }
 async function registerClientPayments(opts={}){
   const bulk=csBulk();
   const addFee=parseFloat(document.getElementById('cs-addfee')?.value)||0;
-  const expense=parseFloat(document.getElementById('cs-expense')?.value)||0;
-  const fee=parseFloat(document.getElementById('cs-fee')?.value)||0;
   const q=(document.getElementById('cs-search')?.value||'').trim();
   const all=settleRowsAll();
   const notYet=all.filter(r=>r.months.length && !periodEnded(r.months) && r.user>0).map(r=>r.name);
@@ -2763,8 +2783,8 @@ async function registerClientPayments(opts={}){
   const dup=list.filter(r=>reg[keyOf(r)]).map(r=>r.name);
   const sum=list.reduce((a,r)=>a+r.user+r.sf.amount,0), sfSum=list.reduce((a,r)=>a+r.sf.amount,0);
   const head = bulk ? `${periodLabelOf(list[0].months)}のクライアント本人報酬` : 'クライアント本人報酬（期間はクライアントごと）';
-  let msg=`${head}を支払い管理に登録します。${q?`\n（絞り込み中：「${q}」）`:''}\n\n${list.length}名・報酬合計 ¥${fmt(sum)}（振込加算+¥${fmt(addFee)}${expense?'　経費−¥'+fmt(expense):''}${fee?'　手数料−¥'+fmt(fee):''}　1人あたり）${sfSum?`\nうち前回までの不足分 ¥${fmt(sfSum)} を上乗せ`:''}\n振込予定日：各期間の翌月15日\n\n`
-    +list.slice(0,12).map(r=>`・${r.name}　¥${fmt(r.user+r.sf.amount)}${r.sf.amount?`（不足分 ¥${fmt(r.sf.amount)} 含む）`:''}${bulk?'':'　'+periodLabelOf(r.months)}`).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
+  let msg=`${head}を支払い管理に登録します。${q?`\n（絞り込み中：「${q}」）`:''}\n\n${list.length}名・報酬合計 ¥${fmt(sum)}（振込加算+¥${fmt(addFee)}　1人あたり）${sfSum?`\nうち前回までの不足分 ¥${fmt(sfSum)} を上乗せ`:''}\n振込予定日：各期間の翌月15日\n\n`
+    +list.slice(0,12).map(r=>{const _a=csAdjOf(r.name),_e=_a.expense||0,_f=_a.fee||0,_t=Math.max(0,r.user+r.sf.amount+addFee-_e-_f); return `・${r.name}　振込¥${fmt(_t)}${(_e||_f)?`（控除−¥${fmt(_e+_f)}）`:''}${r.sf.amount?`（不足分 ¥${fmt(r.sf.amount)} 含む）`:''}${bulk?'':'　'+periodLabelOf(r.months)}`;}).join('\n')+(list.length>12?`\n…ほか${list.length-12}名`:'');
   if(notYet.length) msg+=`\n\n⏳ 期間がまだ終わっていないので今回は登録しません：${notYet.join('、')}`;
   if(dup.length) msg+=`\n\n⚠ すでに同じ期間で登録済みの人がいます（${dup.join('、')}）。もう一度登録すると重複します。`;
   if(!opts.noConfirm && !confirm(msg+'\n\n登録しますか？')) return;
@@ -2774,7 +2794,7 @@ async function registerClientPayments(opts={}){
     const payload={ name:r.name, type: lb.length>1 ? '混合' : (r.rates._src==='own'?'自己資金':r.rates._src==='fund'?'資金提供':rateLabel(r.rates)),
       bankName:cl.bank||'', branchName:cl.branch||'', accountType:cl.accountType||'普通', accountNumber:cl.accountNumber||'', accountHolder:cl.accountHolder||'',
       rewardAmount:r.profit, selfReward:r.user, directReward:r.refDirect, indirectReward:r.refIndirect,
-      pcFee:0, expense:expense, fee:fee, transferAmount:Math.max(0, r.user+r.sf.amount+addFee-expense-fee), transferDate:payDateOf(r.months), referrer:getRefs(r.name).ref1||'', status:'未送金',
+      pcFee:0, expense:(csAdjOf(r.name).expense||0), fee:(csAdjOf(r.name).fee||0), transferAmount:Math.max(0, r.user+r.sf.amount+addFee-(csAdjOf(r.name).expense||0)-(csAdjOf(r.name).fee||0)), transferDate:payDateOf(r.months), referrer:getRefs(r.name).ref1||'', status:'未送金',
       note:`${label} 本人報酬`+(r.sf.amount?`＋${r.sf.label} ¥${fmt(r.sf.amount)}`:'') };
     try{ const res=await gasPost('saveBankTransfer', payload); if(res&&res.success){ ok++; reg[keyOf(r)]=new Date().toISOString(); if(r.sf.amount) shortfallMark('client', r.name, r.sf, payDateOf(r.months)); } else { fail++; failDetails.push('・'+r.name+'：'+(res&&res.error||'登録失敗')); } }catch(e){ fail++; failDetails.push('・'+r.name+'：'+(e.message||'通信エラー')); }
   }
