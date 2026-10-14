@@ -2712,7 +2712,12 @@ function stmtHtmlFor(kind, name, months){
   if(isQuarterMonths(months)){ g('stmt-mode').value='quarter'; g('stmt-year').value=last.year; g('stmt-qmonth').value=String(last.month); }
   else if(months.length>1){ g('stmt-mode').value='range'; g('stmt-from').value=ymKey(first.year,first.month); g('stmt-to').value=ymKey(last.year,last.month); }
   else { g('stmt-mode').value='month'; g('stmt-month').value=ymKey(last.year,last.month); }
-  if(kind==='client'){ const rf=getRefs(name); if(g('stmt-ownpct')) g('stmt-ownpct').value=''; g('stmt-ref1').value=rf.ref1||''; g('stmt-ref2').value=rf.ref2||''; }
+  if(kind==='client'){
+    const rf=getRefs(name); if(g('stmt-ownpct')) g('stmt-ownpct').value=''; g('stmt-ref1').value=rf.ref1||''; g('stmt-ref2').value=rf.ref2||'';
+    const _a=csAdjOf(name),_e=_a.expense||0,_f=_a.fee||0;
+    if(g('stmt-adj')) g('stmt-adj').value=(_e||_f)?-(_e+_f):'';
+    if(g('stmt-adj-label')){ if(_e||_f){ const parts=[]; if(_e)parts.push(_a.expenseLabel||'経費'); if(_f)parts.push(_a.feeLabel||'振込手数料'); g('stmt-adj-label').value=parts.join('・'); } else g('stmt-adj-label').value=''; }
+  }
   const d = kind==='client' ? stmtBuild() : stmtBuildPartner(kind);
   if(d.error) return {error:d.error};
   return {html: kind==='client' ? stmtHTML(d) : stmtHTMLPartner(d), label:d.periodLabel};
