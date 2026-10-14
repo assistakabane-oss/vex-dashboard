@@ -834,6 +834,7 @@ tr:hover td{background:rgba(255,255,255,.015)}
       <div class="toolbar" style="margin-bottom:18px">
         <button class="btn btn-primary btn-sm" onclick="loadBankTransfers()">🔄 データを読み込む</button>
         <button class="btn btn-secondary btn-sm" onclick="openBankForm()">➕ 新規追加</button>
+        <button class="btn btn-danger btn-sm" onclick="bankDeleteDuplicates()" title="同じ名前の2件目以降を自動削除">🗑️ 重複削除</button>
         <div style="font-size:12px;color:var(--muted);margin-left:8px" id="payment-last-load"></div>
         <div class="ml-auto"></div>
         <select class="inp" id="bank-filter-type" onchange="renderBankTab()" style="width:130px;padding:6px 10px;font-size:12px">
@@ -3872,6 +3873,34 @@ async function bankBulkDelete(){
   }
   hideLoad();
   await loadBankTransfers();
+}
+
+async function bankDeleteDuplicates(){
+  const data=S.bankData||[];
+  if(!data.length){ alert('データがありません。先に「データを読み込む」を押してください'); return; }
+  const sorted=[...data].sort((a,b)=>(parseInt(a.rowIndex)||0)-(parseInt(b.rowIndex)||0));
+  const seen={}, toDelete=[];
+  for(const r of sorted){
+    const key=r.name;
+    if(seen[key]) toDelete.push(parseInt(r.rowIndex));
+    else seen[key]=true;
+  }
+  if(!toDelete.length){ alert('重複するデータは見つかりませんでした'); return; }
+  if(!confirm(`${toDelete.length}件の重複データを削除しますか？\n（同じ名前の2件目以降を削除します）`)) return;
+  const indexes=toDelete.sort((a,b)=>b-a);
+  showLoad(`重複削除中… (0/${indexes.length})`);
+  let done=0;
+  for(const rowIndex of indexes){
+    try{
+      const json=await gasPost('deleteBankTransfer',{rowIndex});
+      if(json.error) throw new Error(json.error);
+    }catch(e){ hideLoad(); alert('削除エラー(rowIndex='+rowIndex+'): '+e.message); return; }
+    done++;
+    showLoad(`重複削除中… (${done}/${indexes.length})`);
+  }
+  hideLoad();
+  await loadBankTransfers();
+  alert(`✅ ${done}件の重複データを削除しました`);
 }
 
 // ================================================================
