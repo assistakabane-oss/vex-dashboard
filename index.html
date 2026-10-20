@@ -3014,21 +3014,8 @@ const MN=['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月'
 const S={apiKey:'',members:[],clients:{},distributions:{},opsDistributions:{},paymentData:[],vexStatusData:[],year:2026,month:new Date().getMonth()+1,chart:null,isDemo:false,payFilter:'all'};
 
 async function sheetsAPI(sheetId,range){
-  // シート名と範囲を分割してエンコード（日本語シート名対応）
-  const bangIdx = range.indexOf('!');
-  let encodedRange;
-  if(bangIdx >= 0){
-    const sheetName = range.substring(0, bangIdx);
-    const cellRange = range.substring(bangIdx + 1);
-    encodedRange = encodeURIComponent(sheetName) + '!' + cellRange;
-  } else {
-    encodedRange = encodeURIComponent(range);
-  }
-  const url=`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${encodedRange}?key=${encodeURIComponent(S.apiKey)}`;
-  const r=await fetch(url);
-  const d=await r.json();
-  if(d.error) throw new Error(d.error.message);
-  return d.values||[];
+  const result = await sheetsBatch(sheetId, [range]);
+  return result[0] || [];
 }
 
 // 年間収支表の見出し（4行目＝年、5行目＝月）から「列→年月」を読み取る。読めなければ従来の固定列
