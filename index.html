@@ -1398,9 +1398,9 @@ function parseYMD(x){
 const WD_GRACE_DAY = 10;  // 翌月この日までの返金（銀行出金）は前月分として扱う
 const yen = x => parseFloat(String(x??'').replace(/[¥,\s円]/g,'').replace(/^-?$/,'0').replace(/[^\d.\-]/g,''))||0;
 async function sheetsBatch(sheetId, ranges){
-  const qs = ranges.map(r=>{ const i=r.indexOf('!'); return 'ranges='+encodeURIComponent(r.slice(0,i))+'!'+r.slice(i+1); }).join('&');
-  const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values:batchGet?${qs}&key=${encodeURIComponent(S.apiKey)}`);
-  const j = await res.json(); if (j.error) throw new Error(j.error.message);
+  const GAS_PROXY = 'https://script.google.com/macros/s/AKfycbzZejzfOKfoRLLwWzcpgzl3-1VH77A2FO9bogp0HFkZMqAQsi7EvuJTG15OtbqSS5QF/exec';
+  const res = await fetch(`${GAS_PROXY}?sheetId=${encodeURIComponent(sheetId)}&ranges=${encodeURIComponent(ranges.join(','))}`);
+  const j = await res.json(); if (j.error) throw new Error(j.error);
   return (j.valueRanges||[]).map(v=>v.values||[]);
 }
 function parsePersonTab(head, body){
